@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Hotline.Economy;
 using UnityEngine;
 
@@ -12,6 +13,11 @@ namespace Hotline.UI
         private const float FadeIn = 1.2f, TextIn = 0.8f, Hold = 5f, FadeOut = 1.5f;
         private const float BannerSeconds = 8f;
 
+        // A real clock: this game's Unity time didn't advance where the mod runs, which would
+        // freeze the fades. -1 means "not showing".
+        private static readonly Stopwatch clock = Stopwatch.StartNew();
+        private static float Now => (float)clock.Elapsed.TotalSeconds;
+
         private static float bustedAt = -1, bannerAt = -1;
         private static string detail = "";
         private static GUIStyle title, subtitle, banner;
@@ -19,13 +25,13 @@ namespace Hotline.UI
         public static void Hook(CryptoBank bank)
         {
             bank.Raided += lost => Show($"Everything in your wallet was seized ({Format.Money(lost)}).");
-            bank.Heat.WarningIssued += () => bannerAt = Time.unscaledTime;
+            bank.Heat.WarningIssued += () => bannerAt = Now;
         }
 
         public static void Show(string message)
         {
             detail = message;
-            bustedAt = Time.unscaledTime;
+            bustedAt = Now;
         }
 
         public static void OnGUI()
@@ -38,7 +44,7 @@ namespace Hotline.UI
         private static void DrawBusted()
         {
             if (bustedAt < 0) return;
-            float t = Time.unscaledTime - bustedAt;
+            float t = Now - bustedAt;
             float total = FadeIn + TextIn + Hold + FadeOut;
             if (t > total) { bustedAt = -1; return; }
 
@@ -63,7 +69,7 @@ namespace Hotline.UI
         private static void DrawBanner()
         {
             if (bannerAt < 0) return;
-            float t = Time.unscaledTime - bannerAt;
+            float t = Now - bannerAt;
             if (t > BannerSeconds) { bannerAt = -1; return; }
             float alpha = Mathf.Clamp01(Mathf.Min(t / 0.4f, (BannerSeconds - t) / 0.8f));
             var rect = new Rect(Screen.width * 0.2f, 24, Screen.width * 0.6f, 56);

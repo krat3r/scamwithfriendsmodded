@@ -1,6 +1,7 @@
 using System;
 using Hotline.Economy;
-using UnityEngine;
+using Hotline.UI.Toolkit;
+using UnityEngine.UIElements;
 
 namespace Hotline.UI
 {
@@ -10,38 +11,42 @@ namespace Hotline.UI
         private static readonly string[] TierIds = { "random", "broke", "regular", "welloff", "whale" };
         private static readonly string[] TierLabels = { "Any", "Broke", "Regular", "Well-off", "Whale" };
 
-        public static void Draw()
+        public static void Build(VisualElement page)
         {
             var tier = CallContext.Current;
-            GUILayout.BeginVertical(GUI.skin.box);
+            var box = W.Box(page);
             if (tier == null)
             {
-                GUILayout.Label("No caller yet. Take a call and the dossier fills in.");
+                W.Label(box, "No caller yet. Take a call and the dossier fills in.");
             }
             else
             {
                 var age = DateTime.UtcNow - CallContext.RolledAtUtc;
-                GUILayout.Label($"Caller dossier ({(age.TotalMinutes < 1 ? "current call" : $"{age.TotalMinutes:0} min ago")})");
-                GUILayout.Label($"Wealth: {tier.Label}   ·   Estimated net worth: ~{Format.Money(Round(CallContext.NetWorthEstimate))}");
-                GUILayout.Label($"Wariness: {tier.Wariness}   ·   Rewards x{tier.RewardMultiplier}");
-                GUILayout.Label("Uses:");
+                W.Heading(box, $"Caller dossier ({(age.TotalMinutes < 1 ? "current call" : $"{age.TotalMinutes:0} min ago")})");
+                W.FieldRow(box, "Wealth", tier.Label);
+                W.FieldRow(box, "Estimated net worth", "~" + Format.Money(Round(CallContext.NetWorthEstimate)));
+                W.FieldRow(box, "Wariness", tier.Wariness);
+                W.FieldRow(box, "Rewards", "x" + tier.RewardMultiplier);
+                W.Label(box, "Uses:");
                 bool any = false;
                 foreach (var pack in ScamRegistry.Active())
                 {
                     if (!CallContext.Uses(pack)) continue;
                     any = true;
-                    GUILayout.Label($"  • {pack.brand ?? pack.title}  →  {pack.title}{(string.IsNullOrEmpty(pack.payoutCoin) ? "" : " (crypto, adds heat)")}");
+                    W.Note(box, $"  • {pack.brand ?? pack.title}  →  {pack.title}{(string.IsNullOrEmpty(pack.payoutCoin) ? "" : " (crypto, adds heat)")}");
                 }
-                if (!any) GUILayout.Label("  None of the modded services. Try a stock scam.");
+                if (!any) W.Note(box, "  None of the modded services. Try a stock scam.");
             }
-            GUILayout.EndVertical();
 
-            GUILayout.Space(8);
-            GUILayout.Label("Target preference (applies from the next caller):");
+            W.Space(page);
+            W.Label(page, "Target preference (applies from the next caller):");
             int current = Array.IndexOf(TierIds, CallContext.ForcedTier.Value);
-            int picked = GUILayout.Toolbar(current < 0 ? 0 : current, TierLabels);
-            if (picked != current) CallContext.ForcedTier.Value = TierIds[picked];
-            GUILayout.Label("Richer targets pay more but are harder to convince, and crypto scams on them add more heat.");
+            W.Segmented(page, TierLabels, current < 0 ? 0 : current, picked =>
+            {
+                CallContext.ForcedTier.Value = TierIds[picked];
+                ModMenu.Refresh();
+            });
+            W.Note(page, "Richer targets pay more but are harder to convince, and crypto scams on them add more heat.");
         }
 
         // Estimates read better rounded to two significant figures.

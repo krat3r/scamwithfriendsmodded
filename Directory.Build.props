@@ -46,6 +46,8 @@
     <Reference Include="UnityEngine.CoreModule" HintPath="$(GameManagedDir)UnityEngine.CoreModule.dll" Private="false" />
     <Reference Include="UnityEngine.IMGUIModule" HintPath="$(GameManagedDir)UnityEngine.IMGUIModule.dll" Private="false" />
     <Reference Include="UnityEngine.TextRenderingModule" HintPath="$(GameManagedDir)UnityEngine.TextRenderingModule.dll" Private="false" />
+    <Reference Include="UnityEngine.UIElementsModule" HintPath="$(GameManagedDir)UnityEngine.UIElementsModule.dll" Private="false" />
+    <Reference Include="UnityEngine.UIModule" HintPath="$(GameManagedDir)UnityEngine.UIModule.dll" Private="false" />
   </ItemGroup>
 
   <!-- Game code. Optional so mods that only use reflection still build without it. -->

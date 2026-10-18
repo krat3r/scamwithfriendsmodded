@@ -7,7 +7,9 @@ using HarmonyLib;
 using Hotline.Cheats;
 using Hotline.Economy;
 using Hotline.UI;
+using Hotline.UI.Toolkit;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace Hotline
 {
@@ -17,7 +19,7 @@ namespace Hotline
     {
         public const string Guid = "com.krat3r.hotline";
         public const string Name = "Hotline";
-        public const string Version = "0.4.2";
+        public const string Version = "0.5.0";
 
         /// <summary>Subsystems that failed to start, shown on the badge and the Diagnostics page.</summary>
         internal static readonly List<string> StartupErrors = new List<string>();
@@ -28,7 +30,7 @@ namespace Hotline
         private ModMenu menu;
         private KeyFallback keyFallback;
         private MouseFallback mouseFallback;
-        private float nextTick;
+        private int nextTickMs;
         private string status = "";
 
         private void Awake()
@@ -45,12 +47,12 @@ namespace Hotline
             menu = new ModMenu(menuKey);
             keyFallback = new KeyFallback(() => menuKey.Value);
             mouseFallback = new MouseFallback();
-            ModMenu.AddPage("Scams", DrawScamsPage);
-            ModMenu.AddPage("Caller", CallerPage.Draw);
-            ModMenu.AddPage("Heat", HeatPage.Draw);
-            ModMenu.AddPage("Cheats", CheatsPage.Draw);
-            ModMenu.AddPage("Diagnostics", DrawDiagnosticsPage);
-            ModMenu.AddPage("Settings", DrawSettingsPage);
+            ModMenu.AddPage("Scams", BuildScamsPage);
+            ModMenu.AddPage("Caller", CallerPage.Build);
+            ModMenu.AddPage("Heat", HeatPage.Build);
+            ModMenu.AddPage("Cheats", CheatsPage.Build);
+            ModMenu.AddPage("Diagnostics", BuildDiagnosticsPage);
+            ModMenu.AddPage("Settings", BuildSettingsPage);
             Step("Mod runner", StartRunner);
 
             Step("Game probe", GameProbe.Scan);
@@ -73,7 +75,7 @@ namespace Hotline
             Step("Cheats", () => GameCheats.Bind(Config));
 
             Mod.Log.LogInfo(StartupErrors.Count == 0
-                ? $"{Name} {Version} loaded. Press {menuKey.Value} in game for the mod menu (key input: IMGUI + {keyFallback.Source}; badge clicks: IMGUI{(mouseFallback.Available ? " + Input System" : "")})."
+                ? $"{Name} {Version} loaded. Press {menuKey.Value} or click the HOTLINE tag for the menu (key input: {keyFallback.Source}; mouse: {(mouseFallback.Available ? "Input System" : "none")})."
                 : $"{Name} {Version} loaded with {StartupErrors.Count} problem(s): {string.Join("; ", StartupErrors)}");
         }
 
@@ -93,7 +95,7 @@ namespace Hotline
         /// </summary>
         private void StartRunner()
         {
-            var host = new GameObject("Hotline");
+            var host = new GameObject("Hotline Runner");
             host.hideFlags = HideFlags.HideAndDontSave;
             DontDestroyOnLoad(host);
             host.AddComponent<Runner>().Owner = this;
@@ -103,26 +105,32 @@ namespace Hotline
         {
             public Plugin Owner;
             private void Update() => Owner?.Tick();
-            private void OnGUI() => Owner?.DrawGui();
+            private void OnGUI() => Owner?.DrawBadge();
         }
 
         private void Tick()
         {
-            if (keyFallback.PressedThisFrame()) menu.Toggle("key (" + keyFallback.Source + ")");
-            if (showBadge.Value && mouseFallback.LeftPressedThisFrame(out var click) && Badge.LastRect.Contains(click))
-                menu.Toggle("badge click (Input System)");
-            if (Time.unscaledTime < nextTick) return;
-            nextTick = Time.unscaledTime + 0.5f;
+            // One toggle per frame, from the Input System only (IMGUI gets no usable input here).
+            bool key = keyFallback.PressedThisFrame();
+            bool badgeClick = showBadge.Value && mouseFallback.LeftPressedThisFrame(out var click) && Badge.LastRect.Contains(click);
+            if (key) menu.Toggle("key (" + keyFallback.Source + ")");
+            else if (badgeClick) menu.Toggle("badge click");
+
+            // Wall clock, not Time.unscaledTime: this game's Unity time didn't advance in the runner.
+            int now = Environment.TickCount;
+            if (unchecked(now - nextTickMs) < 0) return;
+            nextTickMs = now + 500;
             Guard(DayWatcher.Poll);
             Guard(CryptoPayouts.Poll);
             Guard(GameCheats.Tick);
         }
 
-        private void DrawGui()
+        // Badge display stays on IMGUI: it renders fine (players see it) and only needs to be drawn,
+        // not clicked - clicks are detected through the Input System in Tick.
+        private void DrawBadge()
         {
-            if (showBadge.Value && Badge.Draw(menuKey.Value.ToString(), StartupErrors.Count)) menu.Toggle("badge click");
+            if (showBadge.Value) Badge.Draw(menuKey.Value.ToString(), StartupErrors.Count);
             BustedScreen.OnGUI();
-            menu.OnGUI();
         }
 
         // Errors in per-frame work are logged once each instead of every frame.
@@ -139,60 +147,58 @@ namespace Hotline
         // No OnDestroy unpatching: if the game destroys BepInEx's manager object mid-session,
         // that would silently remove every hook while the Runner keeps the menu alive.
 
-        private void DrawScamsPage()
+        private void BuildScamsPage(VisualElement page)
         {
-            GUILayout.Label("Buy a scam's app in Scamazon, then pitch it to callers. Changes apply to the next call; new apps appear when the computer is rebuilt (next day or relaunch).");
+            W.Label(page, "Buy a scam's app in Scamazon, then pitch it to callers. Changes apply to the next call; new apps appear when the computer is rebuilt (next day or relaunch).");
             foreach (var pack in ScamRegistry.Packs)
             {
-                GUILayout.BeginVertical(GUI.skin.box);
-                var on = GUILayout.Toggle(ScamRegistry.IsEnabled(pack), $" {pack.title}");
-                if (on != ScamRegistry.IsEnabled(pack)) ScamRegistry.SetEnabled(pack, on);
-                if (!string.IsNullOrEmpty(pack.description)) GUILayout.Label(pack.description);
-                GUILayout.Label($"Reward {pack.reward}{(string.IsNullOrEmpty(pack.payoutCoin) ? "" : $" in {pack.payoutCoin} (adds heat)")}  ·  App price {pack.shop.price}  ·  Unlocks day {pack.shop.unlockDay}");
+                var box = W.Box(page);
+                W.Toggle(box, " " + pack.title, ScamRegistry.IsEnabled(pack), on => ScamRegistry.SetEnabled(pack, on));
+                if (!string.IsNullOrEmpty(pack.description)) W.Note(box, pack.description);
+                W.Note(box, $"Reward {pack.reward}{(string.IsNullOrEmpty(pack.payoutCoin) ? "" : $" in {pack.payoutCoin} (adds heat)")}  ·  App price {pack.shop.price}  ·  Unlocks day {pack.shop.unlockDay}");
                 foreach (var objective in pack.objectives)
-                    GUILayout.Label($"  {(objective.final ? "★" : objective.optional ? "○" : "•")} {objective.text}");
-                GUILayout.EndVertical();
+                    W.Note(box, $"  {(objective.final ? "★" : objective.optional ? "○" : "•")} {objective.text}");
             }
-            GUILayout.Space(8);
-            GUILayout.Label($"Add your own packs as .json files in:\n{ScamRegistry.UserFolder}");
-            if (GUILayout.Button("Reload scam packs")) ScamRegistry.Reload();
+            W.Space(page);
+            W.Note(page, "Add your own packs as .json files in:\n" + ScamRegistry.UserFolder);
+            W.Button(page, "Reload scam packs", () => { ScamRegistry.Reload(); ModMenu.Refresh(); });
         }
 
-        private void DrawDiagnosticsPage()
+        private void BuildDiagnosticsPage(VisualElement page)
         {
-            GUILayout.Label($"{Name} {Version} · key input: IMGUI + {keyFallback.Source}");
+            W.Label(page, $"{Name} {Version} · key input: {keyFallback.Source}");
             if (StartupErrors.Count > 0)
             {
-                GUILayout.Label("Startup problems:");
-                foreach (var error in StartupErrors) GUILayout.Label("  " + error);
+                W.Heading(page, "Startup problems");
+                foreach (var error in StartupErrors) W.Note(page, "  " + error);
             }
-            GUILayout.Label($"Game types: {GameProbe.Found.Count} found, {GameProbe.Missing.Count} missing");
-            foreach (var name in GameProbe.Missing) GUILayout.Label($"  missing: {name}");
-            GUILayout.Label("Hooks installed:");
-            foreach (var hook in ScamInjector.InstalledHooks) GUILayout.Label($"  {hook}");
-            foreach (var hook in ScamazonHooks.InstalledHooks) GUILayout.Label($"  {hook}");
-            GUILayout.Label($"Calls started: {ScamInjector.SessionsStarted}");
-            GUILayout.Label($"Modded scams added to calls: {ScamInjector.ScamsInjected}");
-            GUILayout.Space(8);
-            GUILayout.Label("Dump the game's scams, Scamazon products and computer apps to JSON (start a call and open the computer first so there's data).");
-            if (GUILayout.Button("Dump game catalog"))
+            W.FieldRow(page, "Game types", $"{GameProbe.Found.Count} found, {GameProbe.Missing.Count} missing");
+            foreach (var name in GameProbe.Missing) W.Note(page, "  missing: " + name);
+            W.Heading(page, "Hooks installed");
+            foreach (var hook in ScamInjector.InstalledHooks) W.Note(page, "  " + hook);
+            foreach (var hook in ScamazonHooks.InstalledHooks) W.Note(page, "  " + hook);
+            W.FieldRow(page, "Calls started", ScamInjector.SessionsStarted.ToString());
+            W.FieldRow(page, "Modded scams added", ScamInjector.ScamsInjected.ToString());
+            W.Space(page);
+            W.Note(page, "Dump the game's scams, Scamazon products and computer apps to JSON (start a call and open the computer first so there's data).");
+            W.Button(page, "Dump game catalog", () =>
             {
                 try { status = "Written to " + CatalogDump.Write(); }
                 catch (Exception e) { status = "Dump failed: " + e.Message; Mod.Log.LogError(e); }
-            }
-            if (status.Length > 0) GUILayout.Label(status);
+                ModMenu.Refresh();
+            });
+            if (status.Length > 0) W.Note(page, status);
         }
 
-        private void DrawSettingsPage()
+        private void BuildSettingsPage(VisualElement page)
         {
-            showBadge.Value = GUILayout.Toggle(showBadge.Value, " Show the HOTLINE badge");
-            Mod.LogGameEvents.Value = GUILayout.Toggle(Mod.LogGameEvents.Value, " Log game events");
+            W.Toggle(page, " Show the HOTLINE badge", showBadge.Value, v => showBadge.Value = v);
+            W.Toggle(page, " Log game events", Mod.LogGameEvents.Value, v => Mod.LogGameEvents.Value = v);
             if (CallContext.ScaleStockRewards != null)
-                CallContext.ScaleStockRewards.Value = GUILayout.Toggle(CallContext.ScaleStockRewards.Value,
-                    " Scale the game's own scams by caller wealth");
-            if (GUILayout.Button("Preview the \"crime doesn't pay\" screen", GUILayout.Width(300)))
-                BustedScreen.Show("This is a preview. Nothing was seized.");
-            GUILayout.Label($"Menu key: {menuKey.Value} (change MenuKey in BepInEx/config/{Guid}.cfg)");
+                W.Toggle(page, " Scale the game's own scams by caller wealth", CallContext.ScaleStockRewards.Value,
+                    v => CallContext.ScaleStockRewards.Value = v);
+            W.Button(page, "Preview the \"crime doesn't pay\" screen", () => BustedScreen.Show("This is a preview. Nothing was seized."));
+            W.Note(page, $"Menu key: {menuKey.Value} (change MenuKey in BepInEx/config/{Guid}.cfg)");
         }
     }
 }

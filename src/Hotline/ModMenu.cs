@@ -1,116 +1,178 @@
 using System;
 using System.Collections.Generic;
 using BepInEx.Configuration;
+using Hotline.UI.Toolkit;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace Hotline
 {
     /// <summary>
-    /// In-game mod menu (IMGUI). Other features add tabs with <see cref="AddPage"/>.
-    /// The key is read from IMGUI events and, as a fallback, polled through the game's
-    /// input system (<see cref="UI.KeyFallback"/>); both call <see cref="Toggle"/>.
+    /// In-game mod menu, built on UI Toolkit (the game's own UI system). IMGUI gets no usable
+    /// input in this game, so the menu is a UI Toolkit overlay instead. Other features add tabs
+    /// with <see cref="AddPage"/>; input (the toggle key and badge clicks) is detected through
+    /// the Input System in <see cref="Plugin"/> and routed to <see cref="Toggle"/>.
     /// </summary>
     internal sealed class ModMenu
     {
         private sealed class Page
         {
             public string Title;
-            public Action Draw;
+            public Action<VisualElement> Build;
         }
 
         private static readonly List<Page> pages = new List<Page>();
+        private static ModMenu instance;
 
-        public static bool IsOpen { get; private set; }
+        public static bool IsOpen => instance != null && instance.open;
 
-        public static void AddPage(string title, Action draw) => pages.Add(new Page { Title = title, Draw = draw });
+        public static void AddPage(string title, Action<VisualElement> build) => pages.Add(new Page { Title = title, Build = build });
+
+        /// <summary>Rebuilds the current page if the menu is open (e.g. after reloading scam packs).</summary>
+        public static void Refresh()
+        {
+            if (instance != null && instance.open) instance.BuildContent();
+        }
 
         private readonly ConfigEntry<KeyCode> toggleKey;
-        private Rect window = new Rect(40, 40, 640, 600);
+        private OverlayPanel panel;
+        private VisualElement window;
+        private VisualElement content;
+        private readonly List<Button> tabButtons = new List<Button>();
         private int selected;
-        private Vector2 scroll;
-        private CursorLockMode previousLock;
-        private bool previousVisible;
-        // Milliseconds (Environment.TickCount) of the last toggle. A clock, not Time.frameCount:
-        // in this game the frame counter read from the mod's runner didn't advance, so every press looked like a duplicate.
+        private bool open;
+        private bool failed;
         private int lastToggleMs;
         private bool haveToggled;
-        private const int DuplicateWindowMs = 200;
-        private static bool reportedImguiInput;
+        private const int DuplicateWindowMs = 120;
 
-        public ModMenu(ConfigEntry<KeyCode> toggleKey) => this.toggleKey = toggleKey;
+        public ModMenu(ConfigEntry<KeyCode> toggleKey)
+        {
+            this.toggleKey = toggleKey;
+            instance = this;
+        }
 
         public KeyCode Key => toggleKey.Value;
 
-        /// <summary>Opens or closes the menu. Ignores a second call in the same frame, since both input paths can see one press.</summary>
+        /// <summary>Opens or closes the menu. A second call within a short window (two input paths, one press) is ignored.</summary>
         public void Toggle(string source)
         {
             int now = Environment.TickCount;
-            if (haveToggled && unchecked(now - lastToggleMs) < DuplicateWindowMs)
-            {
-                Mod.Log.LogInfo($"Menu toggle from {source} ignored (same press already handled).");
-                return;
-            }
+            if (haveToggled && unchecked(now - lastToggleMs) < DuplicateWindowMs) return;
             haveToggled = true;
             lastToggleMs = now;
-            SetOpen(!IsOpen);
-            Mod.Log.LogInfo($"Menu {(IsOpen ? "opened" : "closed")} by {source}.");
+            SetOpen(!open, source);
         }
 
-        public void OnGUI()
+        private void SetOpen(bool value, string source)
         {
-            var e = Event.current;
-            // Diagnostic: in this game IMGUI may draw but never receive input. Say so once if it does.
-            if (!reportedImguiInput && (e.isKey || e.isMouse))
-            {
-                reportedImguiInput = true;
-                Mod.Log.LogInfo($"IMGUI receives input events (first: {e.type}).");
-            }
-            if (e.type == EventType.KeyDown && e.keyCode == toggleKey.Value)
-            {
-                Toggle("key (IMGUI)");
-                e.Use();
-            }
-            if (!IsOpen) return;
-
-            // Keep the cursor free while the menu is open; the game may re-lock it each frame.
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
-            window = GUILayout.Window(0x484F_544C, window, Draw, $"{Plugin.Name} {Plugin.Version}");
-        }
-
-        private void SetOpen(bool open)
-        {
-            if (open == IsOpen) return;
-            IsOpen = open;
+            if (failed) return;
+            if (value && window == null && !Build()) return;
+            if (value == open) return;
+            open = value;
+            if (window != null) window.style.display = open ? DisplayStyle.Flex : DisplayStyle.None;
             if (open)
             {
-                previousLock = Cursor.lockState;
-                previousVisible = Cursor.visible;
+                UnityEngine.Cursor.lockState = CursorLockMode.None;
+                UnityEngine.Cursor.visible = true;
+                BuildContent();
             }
-            else
+            Mod.Log.LogInfo($"Menu {(open ? "opened" : "closed")} by {source}.");
+        }
+
+        /// <summary>Builds the panel and window on first open. Returns false if UI Toolkit is unavailable.</summary>
+        private bool Build()
+        {
+            try
             {
-                Cursor.lockState = previousLock;
-                Cursor.visible = previousVisible;
+                panel = OverlayPanel.Create("Menu", 30000f);
+                if (panel == null) { failed = true; return false; }
+
+                window = new VisualElement();
+                window.style.position = Position.Absolute;
+                window.style.left = 40;
+                window.style.top = 40;
+                window.style.width = 660;
+                window.style.maxHeight = Screen.height - 80;
+                window.style.backgroundColor = W.PanelBg;
+                window.style.borderTopLeftRadius = window.style.borderTopRightRadius =
+                    window.style.borderBottomLeftRadius = window.style.borderBottomRightRadius = 10;
+                SetBorder(window, W.Flame, 1);
+                window.style.paddingLeft = window.style.paddingRight =
+                    window.style.paddingTop = window.style.paddingBottom = 12;
+                window.pickingMode = PickingMode.Position; // capture clicks so they don't fall through to the game
+
+                var titleBar = W.Row(window);
+                W.Label(titleBar, "HOTLINE", 18, W.Flame, bold: true).style.marginBottom = 0;
+                var version = W.Label(titleBar, "  v" + Plugin.Version, 12, W.Muted);
+                version.style.marginBottom = 0;
+                version.style.flexGrow = 1;
+                W.Button(titleBar, "Close", () => SetOpen(false, "close button"));
+
+                var tabs = W.Row(window);
+                tabs.style.flexWrap = Wrap.Wrap;
+                tabs.style.marginTop = 6;
+                tabs.style.marginBottom = 6;
+                tabButtons.Clear();
+                for (int i = 0; i < pages.Count; i++)
+                {
+                    int index = i;
+                    var tab = W.Button(tabs, pages[i].Title, () => Select(index));
+                    tabButtons.Add(tab);
+                }
+
+                var scroll = new ScrollView(ScrollViewMode.Vertical);
+                scroll.style.flexGrow = 1;
+                window.Add(scroll);
+                content = new VisualElement();
+                scroll.Add(content);
+
+                window.style.display = DisplayStyle.None;
+                panel.Root.Add(window);
+                HighlightTabs();
+                Mod.Log.LogInfo("UI Toolkit menu built.");
+                return true;
+            }
+            catch (Exception e)
+            {
+                failed = true;
+                Mod.Log.LogError("Could not build the UI Toolkit menu: " + e);
+                return false;
             }
         }
 
-        private void Draw(int id)
+        private void Select(int index)
         {
-            if (pages.Count > 0)
+            selected = index;
+            HighlightTabs();
+            BuildContent();
+        }
+
+        private void HighlightTabs()
+        {
+            for (int i = 0; i < tabButtons.Count; i++)
+                tabButtons[i].style.backgroundColor = i == selected ? W.Flame : W.ButtonBg;
+        }
+
+        private void BuildContent()
+        {
+            if (content == null || pages.Count == 0) return;
+            content.Clear();
+            selected = Mathf.Clamp(selected, 0, pages.Count - 1);
+            try { pages[selected].Build(content); }
+            catch (Exception e)
             {
-                var titles = pages.ConvertAll(p => p.Title).ToArray();
-                selected = GUILayout.Toolbar(Mathf.Clamp(selected, 0, pages.Count - 1), titles);
-                scroll = GUILayout.BeginScrollView(scroll);
-                try { pages[selected].Draw(); }
-                catch (Exception ex) { GUILayout.Label($"Page error: {ex.Message}"); }
-                GUILayout.EndScrollView();
+                W.Label(content, "This page hit an error: " + e.Message, 12, new Color(0.9f, 0.4f, 0.4f));
+                Mod.Log.LogError($"Menu page '{pages[selected].Title}' failed: {e}");
             }
-            GUILayout.FlexibleSpace();
-            GUILayout.BeginHorizontal();
-            GUILayout.Label($"{toggleKey.Value} toggles this menu");
-            if (GUILayout.Button("Close", GUILayout.Width(80))) SetOpen(false);
-            GUILayout.EndHorizontal();
-            GUI.DragWindow();
+        }
+
+        private static void SetBorder(VisualElement element, Color color, float width)
+        {
+            element.style.borderTopColor = element.style.borderBottomColor =
+                element.style.borderLeftColor = element.style.borderRightColor = color;
+            element.style.borderTopWidth = element.style.borderBottomWidth =
+                element.style.borderLeftWidth = element.style.borderRightWidth = width;
         }
     }
 }

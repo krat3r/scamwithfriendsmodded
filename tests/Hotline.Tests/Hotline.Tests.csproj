@@ -12,7 +12,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Hotline/Hotline.csproj" />
     <ProjectReference Include="../../installer/Hotline.Installer.csproj" />
-    <Reference Update="BepInEx;UnityEngine;UnityEngine.CoreModule;UnityEngine.IMGUIModule;UnityEngine.TextRenderingModule" Private="true" />
+    <Reference Update="BepInEx;UnityEngine;UnityEngine.CoreModule;UnityEngine.IMGUIModule;UnityEngine.TextRenderingModule;UnityEngine.UIElementsModule;UnityEngine.UIModule" Private="true" />
     <!-- BepInEx's own 0Harmony targets .NET Framework/Mono; HarmonyX from NuGet runs on .NET 8. -->
     <Reference Remove="0Harmony" />
     <PackageReference Include="HarmonyX" Version="2.16.1" />
