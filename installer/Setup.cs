@@ -156,6 +156,32 @@ namespace Hotline.Installer
         public List<LoaderCheck> CheckLoader()
         {
             var checks = new List<LoaderCheck>();
+
+            // Blockers BepInEx 5 can't work around, checked first because they explain everything else.
+            bool il2cpp = File.Exists(Path.Combine(GameDir, "GameAssembly.dll"));
+            bool mono = File.Exists(Path.Combine(GameDir, GameLocator.DataFolderName, "Managed", "Assembly-CSharp.dll"));
+            if (il2cpp)
+                checks.Add(new LoaderCheck(false, "The game is built with IL2CPP (GameAssembly.dll). BepInEx 5 only supports Mono games, so Hotline can't load into this build. Please report this."));
+            else if (mono)
+                checks.Add(new LoaderCheck(true, "Game is a Mono build (Managed/Assembly-CSharp.dll), which BepInEx 5 supports."));
+
+            foreach (var (path, name) in new[]
+            {
+                ("EasyAntiCheat", "Easy Anti-Cheat"), ("start_protected_game.exe", "Easy Anti-Cheat"),
+                ("BattlEye", "BattlEye"), ("BEService.exe", "BattlEye"),
+            })
+            {
+                if (File.Exists(Path.Combine(GameDir, path)) || Directory.Exists(Path.Combine(GameDir, path)))
+                {
+                    checks.Add(new LoaderCheck(false, $"The game ships {name}, which blocks mod loaders. Hotline can't run while it's active."));
+                    break;
+                }
+            }
+
+            var sac = SmartAppControl();
+            if (sac == 1)
+                checks.Add(new LoaderCheck(false, "Windows Smart App Control is on. It blocks unsigned DLLs, including BepInEx's loader."));
+
             var loader = ActiveLoader;
             checks.Add(loader != null
                 ? new LoaderCheck(true, $"Loader file present: {loader}")
@@ -206,6 +232,63 @@ namespace Hotline.Installer
                 ? new LoaderCheck(true, "BepInEx has started at least once before (its config exists).")
                 : new LoaderCheck(false, "BepInEx has never started in this folder (no BepInEx.cfg yet)."));
             return checks;
+        }
+
+        /// <summary>Windows 11 Smart App Control: 0 off, 1 on (blocks unsigned DLLs), 2 evaluation, -1 unknown.</summary>
+        public static int SmartAppControl()
+        {
+            if (!OperatingSystem.IsWindows()) return -1;
+            try
+            {
+                using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\CI\Policy");
+                return key?.GetValue("VerifiedAndReputablePolicyState") is int state ? state : -1;
+            }
+            catch { return -1; }
+        }
+
+        /// <summary>What Unity's own Player.log says about the game build, or null if there's no log.</summary>
+        public sealed class UnityInfo
+        {
+            public string LogPath;
+            public string EngineVersion;
+            public string Backend; // "Mono", "IL2CPP" or null
+        }
+
+        public UnityInfo ReadUnityLog()
+        {
+            // %USERPROFILE%\AppData\LocalLow\<Company>\<Product>\Player.log
+            var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            if (string.IsNullOrEmpty(local)) return null;
+            var localLow = Path.Combine(Path.GetDirectoryName(local.TrimEnd('\\', '/')) ?? "", "LocalLow");
+            if (!Directory.Exists(localLow)) return null;
+            string found = null;
+            try
+            {
+                foreach (var company in Directory.EnumerateDirectories(localLow))
+                {
+                    var candidate = Path.Combine(company, GameLocator.GameFolderName, "Player.log");
+                    if (File.Exists(candidate)) { found = candidate; break; }
+                }
+            }
+            catch { return null; }
+            if (found == null) return null;
+
+            var info = new UnityInfo { LogPath = found };
+            try
+            {
+                using var stream = new FileStream(found, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                using var reader = new StreamReader(stream);
+                for (int i = 0; i < 400; i++)
+                {
+                    var line = reader.ReadLine();
+                    if (line == null) break;
+                    if (line.StartsWith("Initialize engine version:")) info.EngineVersion = line.Substring("Initialize engine version:".Length).Trim();
+                    if (line.StartsWith("Mono path[")) info.Backend = "Mono";
+                    if (info.Backend == null && line.IndexOf("il2cpp", StringComparison.OrdinalIgnoreCase) >= 0) info.Backend = "IL2CPP";
+                }
+            }
+            catch { }
+            return info;
         }
 
         /// <summary>"x64", "x86", or null if the game exe can't be read.</summary>

@@ -191,6 +191,17 @@ namespace Hotline.Installer
                 if (check.Ok) Ui.Ok(check.Message);
                 else { Ui.Fail(check.Message); anyFailed |= !check.Message.StartsWith("BepInEx has never started"); }
             }
+            var unity = setup.ReadUnityLog();
+            if (unity != null)
+            {
+                Console.WriteLine();
+                Ui.Heading("Game build (from Unity's Player.log)");
+                Ui.Muted("Unity " + (unity.EngineVersion ?? "version unknown") + (unity.Backend != null ? " · " + unity.Backend : ""));
+                if (unity.Backend == "IL2CPP")
+                    Ui.Fail("This build runs on IL2CPP, which BepInEx 5 can't load into.");
+                Ui.Muted(unity.LogPath);
+            }
+
             Console.WriteLine();
             if (!anyFailed && setup.ActiveLoader == Setup.DefaultLoader)
             {
@@ -198,6 +209,11 @@ namespace Hotline.Installer
                 Ui.Info("Pick 7 to switch BepInEx's loader to version.dll, then start the game again.");
             }
             else if (anyFailed) Ui.Info("Fix the items marked × above, then start the game again.");
+            else
+            {
+                Ui.Info("Every check passed but BepInEx still didn't start. Please send a screenshot of this screen,");
+                Ui.Info("the Player.log above, and a list of the files in the game folder.");
+            }
         }
 
         private static void PrintAfterInstall()

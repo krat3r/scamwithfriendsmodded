@@ -39,7 +39,7 @@ namespace Hotline.Installer
 
         public static void Rule() => Console.WriteLine(C(Dim, new string('─', 56)));
 
-        public static void Heading(string text) => Console.WriteLine(C(Cyan, text));
+        public static void Heading(string text) => Console.WriteLine("  " + C(Cyan, text));
 
         public static void Field(string label, string value, string color = null)
         {

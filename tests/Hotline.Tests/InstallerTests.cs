@@ -151,6 +151,16 @@ internal static class InstallerTests
         check(setup.ActiveLoader == Setup.AlternateLoader && !File.Exists(Path.Combine(game, "winhttp.dll")),
             "repair keeps the loader under version.dll instead of adding a second copy");
 
+        Directory.CreateDirectory(Path.Combine(game, GameLocator.DataFolderName, "Managed"));
+        File.WriteAllText(Path.Combine(game, GameLocator.DataFolderName, "Managed", "Assembly-CSharp.dll"), "game");
+        check(setup.CheckLoader().Any(c => c.Ok && c.Message.Contains("Mono build")), "loader checks recognise a Mono build");
+        File.WriteAllText(Path.Combine(game, "GameAssembly.dll"), "il2cpp");
+        check(setup.CheckLoader().Any(c => !c.Ok && c.Message.Contains("IL2CPP")), "loader checks flag an IL2CPP build");
+        File.Delete(Path.Combine(game, "GameAssembly.dll"));
+        Directory.CreateDirectory(Path.Combine(game, "EasyAntiCheat"));
+        check(setup.CheckLoader().Any(c => !c.Ok && c.Message.Contains("Easy Anti-Cheat")), "loader checks flag anti-cheat");
+        Directory.Delete(Path.Combine(game, "EasyAntiCheat"));
+
         File.WriteAllText(Path.Combine(game, "winmm.dll"), "other");
         check(setup.CheckLoader().Any(c => !c.Ok && c.Message.Contains("winmm.dll")), "loader checks flag another mod loader's DLL");
         File.Delete(Path.Combine(game, "winmm.dll"));
