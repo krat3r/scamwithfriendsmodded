@@ -10,6 +10,8 @@ namespace Hotline.UI
     internal static class Badge
     {
         private static GUIStyle brand, text;
+        /// <summary>Where the tag was last drawn, so clicks read outside IMGUI can be hit-tested.</summary>
+        public static Rect LastRect;
         private static readonly Color Flame = new Color(1f, 0.42f, 0.13f);
 
         /// <summary>Draws the tag; returns true when it was clicked this event.</summary>
@@ -26,6 +28,7 @@ namespace Hotline.UI
             var detailSize = text.CalcSize(detailContent);
             var rect = new Rect(10, 10, brandSize.x + detailSize.x + 22, Mathf.Max(brandSize.y, detailSize.y) + 8);
 
+            LastRect = rect;
             var e = Event.current;
             bool hover = rect.Contains(e.mousePosition);
             bool clicked = false;

@@ -30,7 +30,12 @@ namespace Hotline
         private Vector2 scroll;
         private CursorLockMode previousLock;
         private bool previousVisible;
-        private int lastToggleFrame = -1;
+        // Milliseconds (Environment.TickCount) of the last toggle. A clock, not Time.frameCount:
+        // in this game the frame counter read from the mod's runner didn't advance, so every press looked like a duplicate.
+        private int lastToggleMs;
+        private bool haveToggled;
+        private const int DuplicateWindowMs = 200;
+        private static bool reportedImguiInput;
 
         public ModMenu(ConfigEntry<KeyCode> toggleKey) => this.toggleKey = toggleKey;
 
@@ -39,13 +44,14 @@ namespace Hotline
         /// <summary>Opens or closes the menu. Ignores a second call in the same frame, since both input paths can see one press.</summary>
         public void Toggle(string source)
         {
-            int frame = Time.frameCount;
-            if (frame - lastToggleFrame <= 1)
+            int now = Environment.TickCount;
+            if (haveToggled && unchecked(now - lastToggleMs) < DuplicateWindowMs)
             {
                 Mod.Log.LogInfo($"Menu toggle from {source} ignored (same press already handled).");
                 return;
             }
-            lastToggleFrame = frame;
+            haveToggled = true;
+            lastToggleMs = now;
             SetOpen(!IsOpen);
             Mod.Log.LogInfo($"Menu {(IsOpen ? "opened" : "closed")} by {source}.");
         }
@@ -53,6 +59,12 @@ namespace Hotline
         public void OnGUI()
         {
             var e = Event.current;
+            // Diagnostic: in this game IMGUI may draw but never receive input. Say so once if it does.
+            if (!reportedImguiInput && (e.isKey || e.isMouse))
+            {
+                reportedImguiInput = true;
+                Mod.Log.LogInfo($"IMGUI receives input events (first: {e.type}).");
+            }
             if (e.type == EventType.KeyDown && e.keyCode == toggleKey.Value)
             {
                 Toggle("key (IMGUI)");

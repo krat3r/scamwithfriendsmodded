@@ -17,7 +17,7 @@ namespace Hotline
     {
         public const string Guid = "com.krat3r.hotline";
         public const string Name = "Hotline";
-        public const string Version = "0.4.1";
+        public const string Version = "0.4.2";
 
         /// <summary>Subsystems that failed to start, shown on the badge and the Diagnostics page.</summary>
         internal static readonly List<string> StartupErrors = new List<string>();
@@ -27,6 +27,7 @@ namespace Hotline
         private Harmony harmony;
         private ModMenu menu;
         private KeyFallback keyFallback;
+        private MouseFallback mouseFallback;
         private float nextTick;
         private string status = "";
 
@@ -43,6 +44,7 @@ namespace Hotline
             // The menu comes first so it opens even if a game-facing feature fails below.
             menu = new ModMenu(menuKey);
             keyFallback = new KeyFallback(() => menuKey.Value);
+            mouseFallback = new MouseFallback();
             ModMenu.AddPage("Scams", DrawScamsPage);
             ModMenu.AddPage("Caller", CallerPage.Draw);
             ModMenu.AddPage("Heat", HeatPage.Draw);
@@ -71,7 +73,7 @@ namespace Hotline
             Step("Cheats", () => GameCheats.Bind(Config));
 
             Mod.Log.LogInfo(StartupErrors.Count == 0
-                ? $"{Name} {Version} loaded. Press {menuKey.Value} in game for the mod menu (key input: IMGUI + {keyFallback.Source})."
+                ? $"{Name} {Version} loaded. Press {menuKey.Value} in game for the mod menu (key input: IMGUI + {keyFallback.Source}; badge clicks: IMGUI{(mouseFallback.Available ? " + Input System" : "")})."
                 : $"{Name} {Version} loaded with {StartupErrors.Count} problem(s): {string.Join("; ", StartupErrors)}");
         }
 
@@ -107,6 +109,8 @@ namespace Hotline
         private void Tick()
         {
             if (keyFallback.PressedThisFrame()) menu.Toggle("key (" + keyFallback.Source + ")");
+            if (showBadge.Value && mouseFallback.LeftPressedThisFrame(out var click) && Badge.LastRect.Contains(click))
+                menu.Toggle("badge click (Input System)");
             if (Time.unscaledTime < nextTick) return;
             nextTick = Time.unscaledTime + 0.5f;
             Guard(DayWatcher.Poll);
