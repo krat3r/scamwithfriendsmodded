@@ -23,6 +23,7 @@ namespace ScamWithFriendsModded
             "KolkataOsApplicationAccess",
             "KolkataOsApplicationStoreCatalog",
             "KolkataOsApplicationStoreManifest",
+            "ScamazonUnlockSchedule",
         };
 
         public static readonly Dictionary<string, Type> Found = new Dictionary<string, Type>();

@@ -19,6 +19,13 @@ namespace ScamWithFriendsModded
         public ShopListing shop = new ShopListing();
         /// <summary>Appended to the AI caller's system prompt so callers can fall for this scam.</summary>
         public string callerPersona;
+        /// <summary>If set, the reward is paid in this crypto coin's ticker instead of game money.</summary>
+        public string payoutCoin;
+        /// <summary>
+        /// Chain requirement for crypto scams: at least one of these scams must be completed
+        /// earlier in the same call, or the crypto payout is withheld (e.g. inbox access first).
+        /// </summary>
+        public string[] requiresAnyOf;
         public List<Objective> objectives = new List<Objective>();
 
         [JsonIgnore] public string SourceFile;
@@ -61,6 +68,8 @@ namespace ScamWithFriendsModded
                 if (objective.prerequisites != null)
                     foreach (var prerequisite in objective.prerequisites)
                         if (!ids.Contains(prerequisite)) return $"objective '{objective.id}' needs unknown objective '{prerequisite}'";
+            if (!string.IsNullOrEmpty(payoutCoin) && Economy.Coin.ByTicker(payoutCoin) == null)
+                return $"unknown payoutCoin '{payoutCoin}' (known: BTCO, ETHO, DOHG, USDS)";
             return null;
         }
     }

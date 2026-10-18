@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- Runs the mod's hooks against stand-in game types. No game process needed:
-       dotnet run -c Release --project tests/ScamWithFriendsModded.Tests -->
+       see "Tests" in README.md for the command. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>

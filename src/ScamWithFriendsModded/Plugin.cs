@@ -2,6 +2,8 @@ using System.IO;
 using BepInEx;
 using BepInEx.Configuration;
 using HarmonyLib;
+using ScamWithFriendsModded.Cheats;
+using ScamWithFriendsModded.Economy;
 using UnityEngine;
 
 namespace ScamWithFriendsModded
@@ -29,10 +31,16 @@ namespace ScamWithFriendsModded
 
             GameProbe.Scan();
             ScamRegistry.Init(Config, Path.GetDirectoryName(Info.Location));
+            CallContext.Bind(Config);
+            CryptoBank.Init();
+            DayWatcher.Install();
+            DayWatcher.DayChanged += CryptoBank.Instance.OnDay;
 
             harmony = new Harmony(Guid);
             ScamInjector.Install(harmony);
             ScamazonHooks.Install(harmony);
+            GameCheats.Bind(Config);
+            CallBlocker.Install(Config, harmony);
 
             menu = new ModMenu(menuKey);
             ModMenu.AddPage("Scams", DrawScamsPage);
@@ -43,6 +51,17 @@ namespace ScamWithFriendsModded
         }
 
         private void OnGUI() => menu.OnGUI();
+
+        private float nextTick;
+
+        private void Update()
+        {
+            if (Time.unscaledTime < nextTick) return;
+            nextTick = Time.unscaledTime + 0.5f;
+            DayWatcher.Poll();
+            CryptoPayouts.Poll();
+            GameCheats.Tick();
+        }
 
         private void OnDestroy() => harmony?.UnpatchSelf();
 

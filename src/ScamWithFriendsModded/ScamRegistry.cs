@@ -52,8 +52,11 @@ namespace ScamWithFriendsModded
 
         public static ScamPack FindById(string id) => Packs.Find(p => p.id == id);
 
-        /// <summary>Builds a ConversationScamDefinition for the game's call session.</summary>
-        public static object BuildDefinition(ScamPack pack)
+        /// <summary>
+        /// Builds a ConversationScamDefinition for the game's call session. Crypto scams get
+        /// a game reward of 0 because <see cref="CryptoPayouts"/> pays them in coins instead.
+        /// </summary>
+        public static object BuildDefinition(ScamPack pack, double rewardMultiplier = 1.0)
         {
             var definitionType = Native.Type("ConversationScamDefinition");
             var objectiveType = Native.Type("ConversationScamObjective");
@@ -63,7 +66,8 @@ namespace ScamWithFriendsModded
             Native.Set(definition, "id", pack.id);
             Native.Set(definition, "appId", pack.AppId);
             Native.Set(definition, "productId", pack.ProductId);
-            Native.Set(definition, "reward", pack.reward);
+            int reward = string.IsNullOrEmpty(pack.payoutCoin) ? (int)Math.Round(pack.reward * rewardMultiplier) : 0;
+            Native.Set(definition, "reward", reward);
             // Not every build has display fields; set them if present.
             Native.Set(definition, "title", pack.title);
             Native.Set(definition, "description", pack.description);

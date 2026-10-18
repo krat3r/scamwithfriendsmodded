@@ -35,7 +35,7 @@ namespace ScamWithFriendsModded
             {
                 var parameters = ctor.GetParameters();
                 if (parameters.Length > 0 && parameters[0].ParameterType.IsAssignableFrom(arrayType))
-                    Patch(harmony, ctor, prefix: nameof(SessionPrefix));
+                    Patch(harmony, ctor, prefix: nameof(SessionPrefix), postfix: nameof(SessionPostfix));
             }
 
             var prompt = AccessTools.Method(GameProbe.Get("CallerIdentityLibrary"), "BuildCallerSystemPrompt");
@@ -63,14 +63,22 @@ namespace ScamWithFriendsModded
         {
             SessionsStarted++;
             if (!(__args[0] is IEnumerable catalog)) return;
+            var tier = CallContext.EnsureTier();
 
             var merged = new ArrayList();
             var ids = new HashSet<string>();
+            bool changed = false;
             foreach (var definition in catalog)
             {
-                merged.Add(definition);
                 var id = Native.GetString(definition, "id");
                 if (id != null) ids.Add(id);
+                bool ours = id != null && ScamRegistry.FindById(id) != null;
+                if (!ours && CallContext.ShouldScaleStock && tier.RewardMultiplier != 1.0)
+                {
+                    merged.Add(ScaledCopy(definition, tier.RewardMultiplier));
+                    changed = true;
+                }
+                else merged.Add(definition);
             }
             LastNativeCatalog = new ArrayList(merged);
 
@@ -80,7 +88,7 @@ namespace ScamWithFriendsModded
                 if (ids.Contains(pack.id)) continue;
                 try
                 {
-                    var definition = ScamRegistry.BuildDefinition(pack);
+                    var definition = ScamRegistry.BuildDefinition(pack, tier.RewardMultiplier);
                     if (definition == null) continue;
                     merged.Add(definition);
                     added++;
@@ -90,11 +98,29 @@ namespace ScamWithFriendsModded
                     Mod.Log.LogError($"Could not build scam '{pack.id}': {e}");
                 }
             }
-            if (added == 0) return;
+            if (added == 0 && !changed) return;
 
             __args[0] = Native.ToArray(definitionType, merged);
             ScamsInjected += added;
-            if (Mod.LogGameEvents.Value) Mod.Log.LogInfo($"Call started with {added} modded scam(s) available.");
+            if (Mod.LogGameEvents.Value)
+                Mod.Log.LogInfo($"Call started: {tier.Label} target, rewards x{tier.RewardMultiplier}, {added} modded scam(s) available.");
+        }
+
+        private static void SessionPostfix(object __instance) => CryptoPayouts.Track(__instance, CallContext.Current);
+
+        /// <summary>A per-call copy of a stock scam with its rewards scaled; the shared original is untouched.</summary>
+        private static object ScaledCopy(object definition, double multiplier)
+        {
+            var copy = Native.Clone(definition);
+            if (Native.Get(definition, "reward") is int reward)
+                Native.Set(copy, "reward", (int)Math.Round(reward * multiplier));
+            if (Native.Get(definition, "rewardTiers") is int[] tiers)
+            {
+                var scaled = new int[tiers.Length];
+                for (int i = 0; i < tiers.Length; i++) scaled[i] = (int)Math.Round(tiers[i] * multiplier);
+                Native.Set(copy, "rewardTiers", scaled);
+            }
+            return copy;
         }
 
         // The prompt may be built from the game's original catalog, before our session
@@ -102,10 +128,10 @@ namespace ScamWithFriendsModded
         private static void CallerPromptPostfix(ref string __result)
         {
             if (string.IsNullOrEmpty(__result)) return;
-            var personas = new List<string>();
+            var lines = new List<string> { CallContext.EnsureTier().PersonaHint };
             foreach (var pack in ScamRegistry.Active())
-                if (!string.IsNullOrWhiteSpace(pack.callerPersona)) personas.Add(pack.callerPersona.Trim());
-            if (personas.Count > 0) __result += "\n" + string.Join("\n", personas);
+                if (!string.IsNullOrWhiteSpace(pack.callerPersona)) lines.Add(pack.callerPersona.Trim());
+            __result += "\n" + string.Join("\n", lines);
         }
     }
 }

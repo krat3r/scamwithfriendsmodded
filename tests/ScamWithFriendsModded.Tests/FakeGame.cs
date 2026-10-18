@@ -37,6 +37,11 @@ public static class CallerIdentityLibrary
     public static string BuildCallerSystemPrompt(IReadOnlyList<ConversationScamDefinition> catalog, string name) => "You are " + name + ".";
 }
 
+public static class ScamazonUnlockSchedule
+{
+    public static int CurrentDay { get; set; } = 1;
+}
+
 public class KolkataOsApplicationProductDefinition
 {
     public string id, appId, title, description, iconText, accentColor, category = "scam";

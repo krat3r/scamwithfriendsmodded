@@ -25,6 +25,9 @@ internal static class Program
         var config = new ConfigFile(Path.Combine(temp, "test.cfg"), true);
         Mod.LogGameEvents = config.Bind("Debug", "LogGameEvents", true, "");
 
+        CallContext.Bind(config);
+        CallContext.ForcedTier.Value = "regular"; // fixed x1 rewards keep the checks below exact
+
         GameProbe.Scan();
         Check(GameProbe.Missing.Count == 0, "all probed types resolve: missing " + string.Join(",", GameProbe.Missing));
 
@@ -44,6 +47,8 @@ internal static class Program
         TestScamazon();
         TestDesktop();
         TestDump();
+        TestTierScaling();
+        TestRaid();
 
         harmony.UnpatchSelf();
         Console.WriteLine($"{passed} passed, {failed} failed");
@@ -123,6 +128,32 @@ internal static class Program
         var path = CatalogDump.Write();
         var text = File.ReadAllText(path);
         Check(text.Contains("\"credit-card\"") && text.Contains("scamazonProducts") && text.Contains("computerApps"), "catalog dump written");
+    }
+
+    private static void TestTierScaling()
+    {
+        CallContext.ForcedTier.Value = "whale";
+        CallContext.Reset();
+        var stock = Stock();
+        var session = new ConversationScamSession(new[] { stock }, null);
+        Check(session.Catalog[0].reward == 2000 && stock.reward == 400, "whale target scales a per-call copy of the stock reward (400 -> 2000)");
+        Check(session.Catalog.First(d => d.id == "glimmail-login").reward == 1750, "whale target scales modded rewards too");
+        CallContext.ForcedTier.Value = "regular";
+        CallContext.Reset();
+    }
+
+    private static void TestRaid()
+    {
+        var folder = Path.Combine(Paths.ConfigPath, "raid-test");
+        ScamWithFriendsModded.Economy.CryptoBank.Init(folder, seed: 42);
+        var bank = ScamWithFriendsModded.Economy.CryptoBank.Instance;
+        bank.Wallet.Credit("BTCO", 1);
+        bank.Heat.Value = 100;
+        bool raided = false;
+        bank.Raided += _ => raided = true;
+        for (int day = 1; day <= 30 && !raided; day++) { bank.Heat.Value = 100; bank.OnDay(day); }
+        Check(raided && bank.Wallet.Value(bank.Market) == 0, "max heat eventually gets you raided and the wallet seized");
+        Check(File.Exists(Path.Combine(folder, "crypto-state.json")), "crypto state is saved");
     }
 
     private static void Check(bool condition, string name)
