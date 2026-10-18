@@ -12,6 +12,7 @@
     <RootNamespace>Hotline.Installer</RootNamespace>
     <Version>0.4.0</Version>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <ApplicationIcon>..\branding\hotline.ico</ApplicationIcon>
     <!-- Registry calls are guarded by OperatingSystem.IsWindows(). -->
     <NoWarn>$(NoWarn);CA1416</NoWarn>
   </PropertyGroup>

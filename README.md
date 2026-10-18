@@ -1,6 +1,9 @@
-# Hotline
+<p align="center"><img src="branding/hotline-logo.png" width="160" alt="Hotline logo: a phone receiver on fire"></p>
 
-Mods for [Scam With Your Friends](https://store.steampowered.com/app/4954910/Scam_With_Your_Friends/) (Steam, Early Access).
+<h1 align="center">Hotline</h1>
+<p align="center"><i>Crime doesn't pay.</i></p>
+
+A mod for [Scam With Your Friends](https://store.steampowered.com/app/4954910/Scam_With_Your_Friends/) (Steam, Early Access): new scam types, wealthy and broke callers, heat that catches up with you, and an in-game F8 menu.
 
 The game is a Unity (Mono) game, so mods are [BepInEx 5](https://github.com/BepInEx/BepInEx) plugins that use [Harmony](https://github.com/BepInEx/HarmonyX) to patch the game's C# code (`Assembly-CSharp.dll`).
 
@@ -15,12 +18,15 @@ The game is a Unity (Mono) game, so mods are [BepInEx 5](https://github.com/BepI
 | `Directory.Build.props` / `.targets` | Shared build setup: finds the game, references its DLLs, deploys the built mod into `BepInEx/plugins` |
 | `tools/decompile.ps1`, `tools/decompile.sh` | Decompiles the game's code into `decompiled/` (gitignored) so you can find things to hook |
 | `tools/package-release.ps1`, `tools/package-release.sh` | Builds the release installer and manual-install zip into `dist/` |
+| `branding/` | Logo (SVG source, PNG, and the installer's `.ico`) |
 
 ## Installing (players)
 
 1. Download `Hotline-Setup.exe` from the releases page.
 2. Close the game and run it. It finds the game through Steam (or asks for the folder), then offers **Install**, **Repair**, **Uninstall the mod**, and **Uninstall everything**.
-3. Start the game from Steam and press **F8**.
+3. Start the game from Steam. A small **HOTLINE · activated** tag appears in the top-left corner; press **F8** for the menu.
+
+**No tag in the corner?** The mod didn't load. Run the setup again and pick **6 (Check whether the mod loaded)**: it reads BepInEx's log and tells you whether BepInEx ran, whether Hotline loaded, and the error if not. Send `BepInEx/LogOutput.log` with any bug report. If the tag says there were startup problems, open F8 → **Diagnostics** to see them.
 
 BepInEx loads the mod automatically every time the game starts; there's nothing else to run. Uninstalling the mod keeps BepInEx and your settings. "Uninstall everything" also removes BepInEx and warns you if other BepInEx mods would break.
 
@@ -28,7 +34,9 @@ BepInEx loads the mod automatically every time the game starts; there's nothing 
 
 **Windows SmartScreen** may warn that the .exe is unrecognized, because it isn't code-signed. Choose "More info" → "Run anyway", or install by hand: extract BepInEx 5 (x64) into the game folder, then extract `Hotline-<version>.zip` into `BepInEx/plugins/Hotline/`.
 
-The installer also has flags for scripting: `--install [--repair] [--game "path"]` and `--uninstall [--all] [--yes] [--game "path"]`.
+The installer also has flags for scripting: `--install [--repair] [--game "path"]`, `--uninstall [--all] [--yes] [--game "path"]`, and `--check [--game "path"]` (exits 0 if Hotline loaded last run).
+
+Upgrading from the old "Scam With Friends Modded" build: just run the setup. It removes the old `ScamWithFriendsModded` plugin folder so two copies never load. Custom scam packs from the old config folder need moving to `BepInEx/config/Hotline/ScamPacks/`.
 
 ## Building (modders)
 
@@ -40,7 +48,9 @@ The installer also has flags for scripting: `--install [--repair] [--game "path"
    dotnet build -c Release
    ```
    The build copies `Hotline.dll` into `<game>/BepInEx/plugins/Hotline/`. Add `-p:DeployToGame=false` to skip that.
-5. **Launch the game** and press **F8** to open the mod menu. `BepInEx/LogOutput.log` should contain `Hotline 0.3.0 loaded` and `Loaded 4 scam pack(s)`.
+5. **Launch the game.** The HOTLINE tag should appear top-left; press **F8** for the menu. `BepInEx/LogOutput.log` should contain `Hotline 0.4.0 loaded` and `Loaded 4 scam pack(s)`.
+
+The mod targets .NET Framework 4.7.2 (not .NET Standard), because Unity games often lack the `netstandard.dll` a .NET Standard plugin needs, and BepInEx then skips the plugin without any visible error.
 
 Config is written to `BepInEx/config/com.krat3r.hotline.cfg` after the first launch.
 
@@ -84,7 +94,7 @@ Crypto scams (packs with a `payoutCoin`) pay in made-up coins (Bitcorn, Ethos, D
 - **Heat:** heat meter, coin prices, what's in your wallet, and recent payouts and raids.
 - **Cheats:** pin your money and level fields (found with the built-in value finder), add money, infinite money, level lock, and turn off automatic incoming calls. In multiplayer these only work for the host.
 - **Diagnostics:** see which game classes and hooks were found, and dump the game's live scam catalog, Scamazon products and computer apps to `BepInEx/Hotline-catalog.json`.
-- **Settings:** logging, whether stock scams scale with caller wealth, and a preview of the raid screen. The menu key is set in the config file.
+- **Settings:** show or hide the HOTLINE tag, logging, whether stock scams scale with caller wealth, and a preview of the raid screen. The menu key is set in the config file.
 
 **First-time cheats setup:** the mod doesn't know yet where the game stores money and level. Open **Cheats**, press **Scan**, and pin the field whose value matches your money. If several match, earn or spend some money, scan again, and pin the one that changed. The choice is saved.
 

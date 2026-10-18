@@ -15,6 +15,7 @@ namespace Hotline.Installer
 
         private static int Main(string[] args)
         {
+            Ui.Init();
             try
             {
                 return args.Length > 0 ? RunScripted(args) : RunInteractive();
@@ -22,7 +23,7 @@ namespace Hotline.Installer
             catch (Exception e)
             {
                 Console.WriteLine();
-                Console.WriteLine("Error: " + e.Message);
+                Ui.Fail("Error: " + e.Message);
                 if (args.Length == 0) Pause();
                 return 1;
             }
@@ -75,35 +76,37 @@ namespace Hotline.Installer
             while (true)
             {
                 Console.Clear();
-                Console.WriteLine($"Hotline setup  (mod version {payload.Version})");
-                Console.WriteLine(new string('-', 60));
+                Ui.Banner(payload.Version);
                 if (!GameLocator.LooksLikeGame(game))
                 {
-                    Console.WriteLine("Couldn't find Scam With Your Friends automatically.");
+                    Ui.Warn("Couldn't find Scam With Your Friends automatically.");
                     game = AskForGameFolder();
                     if (game == null) return 0;
                     continue;
                 }
 
-                var setup = new Setup(game, payload, Console.WriteLine);
-                Console.WriteLine($"Game:    {game}");
-                Console.WriteLine($"BepInEx: {(setup.BepInExInstalled ? "installed" : "not installed")}");
-                Console.WriteLine($"Mod:     {(setup.ModInstalled ? "installed, version " + setup.InstalledVersion : "not installed")}");
+                var setup = new Setup(game, payload, Ui.Info);
+                Ui.Field("Game", game);
+                Ui.Field("BepInEx", setup.BepInExInstalled ? "installed" : "not installed",
+                    setup.BepInExInstalled ? Ui.StatusGood : Ui.StatusWarn);
+                Ui.Field("Mod", setup.ModInstalled ? "installed · v" + setup.InstalledVersion : "not installed",
+                    setup.ModInstalled ? Ui.StatusGood : Ui.StatusWarn);
                 if (setup.ModInstalled)
                 {
-                    var health = setup.DescribeHealth();
-                    Console.WriteLine($"Last run: {health[health.Count > 1 ? 1 : 0]}");
+                    var health = setup.CheckHealth();
+                    if (health.LogFound)
+                        Ui.Field("Last run", health.HotlineLoaded ? "Hotline loaded" : "Hotline did NOT load",
+                            health.HotlineLoaded ? Ui.StatusGood : Ui.StatusBad);
                 }
                 Console.WriteLine();
-                Console.WriteLine(setup.ModInstalled ? "  1  Update / reinstall the mod" : "  1  Install the mod");
-                Console.WriteLine("  2  Repair (reinstall BepInEx and the mod)");
-                Console.WriteLine("  3  Uninstall the mod (keeps BepInEx and your settings)");
-                Console.WriteLine("  4  Uninstall everything (mod and BepInEx)");
-                Console.WriteLine("  5  Choose a different game folder");
-                Console.WriteLine("  6  Check whether the mod loaded (reads BepInEx's log)");
-                Console.WriteLine("  Q  Quit");
-                Console.Write("> ");
-                var choice = (Console.ReadLine() ?? "q").Trim().ToLowerInvariant();
+                Ui.Option("1", setup.ModInstalled ? "Update / reinstall the mod" : "Install the mod");
+                Ui.Option("2", "Repair (reinstall BepInEx and the mod)");
+                Ui.Option("3", "Uninstall the mod " + Dim("(keeps BepInEx and your settings)"));
+                Ui.Option("4", "Uninstall everything " + Dim("(mod and BepInEx)"));
+                Ui.Option("5", "Choose a different game folder");
+                Ui.Option("6", "Check whether the mod loaded " + Dim("(reads BepInEx's log)"));
+                Ui.Option("Q", "Quit");
+                var choice = Ui.Prompt("Choose an option:").ToLowerInvariant();
                 Console.WriteLine();
 
                 if (choice == "q" || choice == "") return 0;
@@ -116,25 +119,24 @@ namespace Hotline.Installer
                 }
                 if (choice is "1" or "2" or "3" or "4" && Setup.GameRunning())
                 {
-                    Console.WriteLine("Close the game first, then try again.");
+                    Ui.Warn("Close the game first, then try again.");
                     Pause();
                     continue;
                 }
 
                 switch (choice)
                 {
-                    case "1": setup.Install(); PrintAfterInstall(); break;
-                    case "2": setup.Install(repairBepInEx: true); PrintAfterInstall(); break;
-                    case "3": setup.UninstallMod(); break;
+                    case "1": setup.Install(); Ui.Ok("Installed."); PrintAfterInstall(); break;
+                    case "2": setup.Install(repairBepInEx: true); Ui.Ok("Repaired."); PrintAfterInstall(); break;
+                    case "3": setup.UninstallMod(); Ui.Ok("Done."); break;
                     case "4":
                         var others = setup.OtherPlugins();
                         if (others.Count > 0)
-                            Console.WriteLine($"Warning: these other mods also use BepInEx and will stop working: {string.Join(", ", others)}");
-                        Console.Write("Type YES to remove BepInEx and the mod: ");
-                        if ((Console.ReadLine() ?? "").Trim() == "YES") setup.UninstallEverything();
-                        else Console.WriteLine("Cancelled.");
+                            Ui.Warn($"These other mods also use BepInEx and will stop working: {string.Join(", ", others)}");
+                        if (Ui.Prompt("Type YES to remove BepInEx and the mod:") == "YES") { setup.UninstallEverything(); Ui.Ok("Done."); }
+                        else Ui.Info("Cancelled.");
                         break;
-                    default: Console.WriteLine("Pick 1-6 or Q."); break;
+                    default: Ui.Warn("Pick 1-6 or Q."); break;
                 }
                 Pause();
             }
@@ -142,38 +144,41 @@ namespace Hotline.Installer
 
         private static void PrintHealth(Setup setup)
         {
-            foreach (var line in setup.DescribeHealth()) Console.WriteLine(line);
             Console.WriteLine();
-            Console.WriteLine("Full log: " + setup.LogPath);
-            Console.WriteLine("If you report a problem, send that file.");
+            Ui.Heading("Mod health");
+            var health = setup.CheckHealth();
+            if (!health.LogFound) Ui.Warn(setup.DescribeHealth()[0]);
+            else if (health.HotlineLoaded) Ui.Ok("Hotline loaded in the last run.");
+            else Ui.Fail("Hotline did NOT load in the last run.");
+            foreach (var line in setup.DescribeHealth()) Ui.Muted(line);
+            Console.WriteLine();
+            Ui.Muted("Full log: " + setup.LogPath);
+            Ui.Muted("If you report a problem, send that file.");
         }
 
         private static void PrintAfterInstall()
         {
             Console.WriteLine();
-            Console.WriteLine("Done. Start the game from Steam. You should see \"HOTLINE ... activated\" in the top-left corner;");
-            Console.WriteLine("press F8 for the mod menu. If you don't see it, run this setup again and pick 6.");
-            Console.WriteLine("Steam Deck / Linux (Proton): set this as the game's launch option in Steam:");
-            Console.WriteLine("  " + ProtonLaunchOption);
+            Ui.Info("Start the game from Steam. You should see \"HOTLINE activated\" in the top-left corner;");
+            Ui.Info("press F8 for the mod menu. If you don't see it, run this setup again and pick 6.");
+            Ui.Muted("Steam Deck / Linux (Proton): set this as the game's launch option in Steam:");
+            Ui.Muted("  " + ProtonLaunchOption);
         }
 
         private static string AskForGameFolder()
         {
-            Console.WriteLine("Paste the game folder (the one containing \"Scam With Your Friends.exe\"),");
-            Console.Write("or press Enter to quit: ");
-            var input = (Console.ReadLine() ?? "").Trim().Trim('"');
+            Ui.Info("Paste the game folder (the one containing \"Scam With Your Friends.exe\").");
+            var input = Ui.Prompt("Folder (or Enter to quit):").Trim('"');
             if (input.Length == 0) return null;
             if (GameLocator.LooksLikeGame(input)) return Path.GetFullPath(input);
-            Console.WriteLine("That folder doesn't look like the game.");
+            Ui.Fail("That folder doesn't look like the game.");
             Pause();
             return "";
         }
 
-        private static void Pause()
-        {
-            Console.Write("Press Enter to continue...");
-            Console.ReadLine();
-        }
+        private static string Dim(string text) => Ui.Color ? "\x1b[90m" + text + "\x1b[0m" : text;
+
+        private static void Pause() => Ui.Prompt("Press Enter to continue...");
 
         private static bool Has(string[] args, string flag) => Array.IndexOf(args, flag) >= 0;
 
