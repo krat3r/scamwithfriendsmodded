@@ -4,6 +4,7 @@ using BepInEx.Configuration;
 using HarmonyLib;
 using ScamWithFriendsModded.Cheats;
 using ScamWithFriendsModded.Economy;
+using ScamWithFriendsModded.UI;
 using UnityEngine;
 
 namespace ScamWithFriendsModded
@@ -14,7 +15,7 @@ namespace ScamWithFriendsModded
     {
         public const string Guid = "com.krat3r.scamwithfriendsmodded";
         public const string Name = "Scam With Friends Modded";
-        public const string Version = "0.2.0";
+        public const string Version = "0.3.0";
 
         private ConfigEntry<KeyCode> menuKey;
         private Harmony harmony;
@@ -42,15 +43,24 @@ namespace ScamWithFriendsModded
             GameCheats.Bind(Config);
             CallBlocker.Install(Config, harmony);
 
+            BustedScreen.Hook(CryptoBank.Instance);
+
             menu = new ModMenu(menuKey);
             ModMenu.AddPage("Scams", DrawScamsPage);
+            ModMenu.AddPage("Caller", CallerPage.Draw);
+            ModMenu.AddPage("Heat", HeatPage.Draw);
+            ModMenu.AddPage("Cheats", CheatsPage.Draw);
             ModMenu.AddPage("Diagnostics", DrawDiagnosticsPage);
             ModMenu.AddPage("Settings", DrawSettingsPage);
 
             Mod.Log.LogInfo($"{Name} {Version} loaded. Press {menuKey.Value} in game for the mod menu.");
         }
 
-        private void OnGUI() => menu.OnGUI();
+        private void OnGUI()
+        {
+            BustedScreen.OnGUI();
+            menu.OnGUI();
+        }
 
         private float nextTick;
 
@@ -106,6 +116,10 @@ namespace ScamWithFriendsModded
         private void DrawSettingsPage()
         {
             Mod.LogGameEvents.Value = GUILayout.Toggle(Mod.LogGameEvents.Value, " Log game events");
+            CallContext.ScaleStockRewards.Value = GUILayout.Toggle(CallContext.ScaleStockRewards.Value,
+                " Scale the game's own scams by caller wealth");
+            if (GUILayout.Button("Preview the \"crime doesn't pay\" screen", GUILayout.Width(300)))
+                BustedScreen.Show("This is a preview. Nothing was seized.");
             GUILayout.Label($"Menu key: {menuKey.Value} (change MenuKey in BepInEx/config/{Guid}.cfg)");
         }
     }

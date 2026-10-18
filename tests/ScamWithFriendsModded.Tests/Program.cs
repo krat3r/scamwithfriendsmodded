@@ -88,8 +88,16 @@ internal static class Program
 
     private static void TestCallerPrompt()
     {
+        CallContext.Reset();
         var prompt = CallerIdentityLibrary.BuildCallerSystemPrompt(new[] { Stock() }, "Pat");
-        Check(prompt.StartsWith("You are Pat.") && prompt.Contains("Glimmail") && prompt.Contains("Zoinbase"), "caller prompt gets personas");
+        Check(prompt.StartsWith("You are Pat.") && prompt.Contains(TargetTier.Regular.PersonaHint), "caller prompt gets the tier persona");
+        Check(CallContext.Accounts.Count >= 1, "every caller uses at least one modded service");
+        bool onlyOwn = true;
+        foreach (var pack in ScamRegistry.Packs)
+            if (prompt.Contains(pack.callerPersona.Trim()) != CallContext.Uses(pack)) onlyOwn = false;
+        Check(onlyOwn, "caller prompt only includes backstories for services this caller uses");
+        var tier = CallContext.Current;
+        Check(CallContext.NetWorthEstimate >= tier.NetWorthMin && CallContext.NetWorthEstimate <= tier.NetWorthMax, "net worth estimate is within the tier range");
     }
 
     private static void TestScamazon()
@@ -148,11 +156,22 @@ internal static class Program
         ScamWithFriendsModded.Economy.CryptoBank.Init(folder, seed: 42);
         var bank = ScamWithFriendsModded.Economy.CryptoBank.Instance;
         bank.Wallet.Credit("BTCO", 1);
-        bank.Heat.Value = 100;
-        bool raided = false;
+        bool raided = false, warned = false;
+        int raidDay = 0;
         bank.Raided += _ => raided = true;
-        for (int day = 1; day <= 30 && !raided; day++) { bank.Heat.Value = 100; bank.OnDay(day); }
-        Check(raided && bank.Wallet.Value(bank.Market) == 0, "max heat eventually gets you raided and the wallet seized");
+        bank.Heat.WarningIssued += () => warned = true;
+
+        bank.Heat.Value = 100;
+        bank.OnDay(1);
+        Check(warned && !raided && bank.Wallet.Value(bank.Market) > 0, "first day over the line is a warning, not a raid");
+
+        for (int day = 2; day <= 30 && !raided; day++) { bank.Heat.Value = 100; bank.OnDay(day); raidDay = day; }
+        Check(raided && bank.Wallet.Value(bank.Market) == 0, "staying at max heat after the warning gets you raided and the wallet seized");
+
+        bank.Heat.Value = 40;
+        warned = false;
+        bank.OnDay(raidDay + 1);
+        Check(!warned && !bank.Heat.Warned, "dropping below the line clears the warning");
         Check(File.Exists(Path.Combine(folder, "crypto-state.json")), "crypto state is saved");
     }
 

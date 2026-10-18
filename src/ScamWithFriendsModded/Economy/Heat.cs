@@ -9,11 +9,17 @@ namespace ScamWithFriendsModded.Economy
     /// </summary>
     public sealed class Heat
     {
+        public const double DangerLine = 50;
+
         public double Value;      // 0..100
         public bool RaidPending;
+        /// <summary>True once you've been warned; raids can only happen on a later day.</summary>
+        public bool Warned;
         public string LastEvent = "Clean record.";
 
         public event Action Changed;
+        /// <summary>Raised the first day heat ends above the danger line.</summary>
+        public event Action WarningIssued;
 
         public void Add(double amount, string reason)
         {
@@ -29,14 +35,37 @@ namespace ScamWithFriendsModded.Economy
             Changed?.Invoke();
         }
 
-        /// <summary>Call once per in-game day. Decays heat and rolls for a raid.</summary>
+        /// <summary>
+        /// Call once per in-game day. Decays heat, then: below the danger line nothing
+        /// happens; the first day above it you get a warning instead of a raid; after that
+        /// each day above it rolls for a raid.
+        /// </summary>
         public bool RollDay(Random rng)
         {
             Reduce(8 + rng.NextDouble() * 6);
-            double raidChance = Value <= 50 ? 0 : (Value - 50) / 100.0; // up to 50% at max heat
+            RaidPending = false;
+            if (Value <= DangerLine)
+            {
+                Warned = false;
+                Changed?.Invoke();
+                return false;
+            }
+            if (!Warned)
+            {
+                Warned = true;
+                LastEvent = "Investigators are looking into you. Stop now, or expect a raid.";
+                Changed?.Invoke();
+                WarningIssued?.Invoke();
+                return false;
+            }
+            double raidChance = (Value - DangerLine) / 100.0; // up to 50% at max heat
             bool raided = rng.NextDouble() < raidChance;
             RaidPending = raided;
-            if (raided) LastEvent = "The Cyber Crimes Unit raided you. Your wallet was seized.";
+            if (raided)
+            {
+                Warned = false;
+                LastEvent = "The Cyber Crimes Unit raided you. Your wallet was seized.";
+            }
             Changed?.Invoke();
             return raided;
         }

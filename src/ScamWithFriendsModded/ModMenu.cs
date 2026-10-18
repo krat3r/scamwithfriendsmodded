@@ -24,7 +24,7 @@ namespace ScamWithFriendsModded
         public static void AddPage(string title, Action draw) => pages.Add(new Page { Title = title, Draw = draw });
 
         private readonly ConfigEntry<KeyCode> toggleKey;
-        private Rect window = new Rect(40, 40, 520, 560);
+        private Rect window = new Rect(40, 40, 640, 600);
         private int selected;
         private Vector2 scroll;
         private CursorLockMode previousLock;

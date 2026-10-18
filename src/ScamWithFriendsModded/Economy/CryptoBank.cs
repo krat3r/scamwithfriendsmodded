@@ -73,6 +73,7 @@ namespace ScamWithFriendsModded.Economy
             public int Day;
             public System.Collections.Generic.Dictionary<string, double> Holdings;
             public double Heat;
+            public bool Warned;
         }
 
         public void Save()
@@ -85,6 +86,7 @@ namespace ScamWithFriendsModded.Economy
                     Day = Market.CurrentDay,
                     Holdings = Wallet.Holdings,
                     Heat = Heat.Value,
+                    Warned = Heat.Warned,
                 };
                 File.WriteAllText(savePath, JsonConvert.SerializeObject(data, Formatting.Indented));
             }
@@ -104,6 +106,7 @@ namespace ScamWithFriendsModded.Economy
                 Market.AdvanceTo(data.Day);
                 if (data.Holdings != null) foreach (var pair in data.Holdings) Wallet.Holdings[pair.Key] = pair.Value;
                 Heat.Value = data.Heat;
+                Heat.Warned = data.Warned;
             }
             catch (Exception e) { Plugin_Log("Crypto: could not load state: " + e.Message); }
         }

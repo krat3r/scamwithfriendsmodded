@@ -124,13 +124,13 @@ namespace ScamWithFriendsModded
         }
 
         // The prompt may be built from the game's original catalog, before our session
-        // prefix runs, so personas for every active pack are added unconditionally.
+        // prefix runs, so personas come from the caller's rolled accounts, not the catalog.
         private static void CallerPromptPostfix(ref string __result)
         {
             if (string.IsNullOrEmpty(__result)) return;
             var lines = new List<string> { CallContext.EnsureTier().PersonaHint };
             foreach (var pack in ScamRegistry.Active())
-                if (!string.IsNullOrWhiteSpace(pack.callerPersona)) lines.Add(pack.callerPersona.Trim());
+                if (CallContext.Uses(pack) && !string.IsNullOrWhiteSpace(pack.callerPersona)) lines.Add(pack.callerPersona.Trim());
             __result += "\n" + string.Join("\n", lines);
         }
     }
