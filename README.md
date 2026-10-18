@@ -1,4 +1,4 @@
-# Scam With Friends Modded
+# Hotline
 
 Mods for [Scam With Your Friends](https://store.steampowered.com/app/4954910/Scam_With_Your_Friends/) (Steam, Early Access).
 
@@ -8,17 +8,17 @@ The game is a Unity (Mono) game, so mods are [BepInEx 5](https://github.com/BepI
 
 | Path | What it is |
 | --- | --- |
-| `src/ScamWithFriendsModded/` | The mod: new scam types loaded from JSON, Scamazon/computer app hooks, and the F8 mod menu |
-| `src/ScamWithFriendsModded/ScamPacks/` | The bundled scam types (one JSON file each) |
-| `installer/` | `SWYF-Modded-Setup.exe`: finds the game, installs BepInEx and the mod, uninstalls |
-| `tests/ScamWithFriendsModded.Tests/` | Runs the hooks and installer against stand-in game classes and folders, no game process needed |
+| `src/Hotline/` | The mod: new scam types loaded from JSON, Scamazon/computer app hooks, and the F8 mod menu |
+| `src/Hotline/ScamPacks/` | The bundled scam types (one JSON file each) |
+| `installer/` | `Hotline-Setup.exe`: finds the game, installs BepInEx and the mod, uninstalls |
+| `tests/Hotline.Tests/` | Runs the hooks and installer against stand-in game classes and folders, no game process needed |
 | `Directory.Build.props` / `.targets` | Shared build setup: finds the game, references its DLLs, deploys the built mod into `BepInEx/plugins` |
 | `tools/decompile.ps1`, `tools/decompile.sh` | Decompiles the game's code into `decompiled/` (gitignored) so you can find things to hook |
 | `tools/package-release.ps1`, `tools/package-release.sh` | Builds the release installer and manual-install zip into `dist/` |
 
 ## Installing (players)
 
-1. Download `SWYF-Modded-Setup.exe` from the releases page.
+1. Download `Hotline-Setup.exe` from the releases page.
 2. Close the game and run it. It finds the game through Steam (or asks for the folder), then offers **Install**, **Repair**, **Uninstall the mod**, and **Uninstall everything**.
 3. Start the game from Steam and press **F8**.
 
@@ -26,7 +26,7 @@ BepInEx loads the mod automatically every time the game starts; there's nothing 
 
 **Steam Deck / Linux (Proton):** set the game's launch option in Steam to `WINEDLLOVERRIDES="winhttp=n,b" %command%`, or BepInEx won't load.
 
-**Windows SmartScreen** may warn that the .exe is unrecognized, because it isn't code-signed. Choose "More info" → "Run anyway", or install by hand: extract BepInEx 5 (x64) into the game folder, then extract `ScamWithFriendsModded-<version>.zip` into `BepInEx/plugins/ScamWithFriendsModded/`.
+**Windows SmartScreen** may warn that the .exe is unrecognized, because it isn't code-signed. Choose "More info" → "Run anyway", or install by hand: extract BepInEx 5 (x64) into the game folder, then extract `Hotline-<version>.zip` into `BepInEx/plugins/Hotline/`.
 
 The installer also has flags for scripting: `--install [--repair] [--game "path"]` and `--uninstall [--all] [--yes] [--game "path"]`.
 
@@ -39,12 +39,12 @@ The installer also has flags for scripting: `--install [--repair] [--game "path"
    ```
    dotnet build -c Release
    ```
-   The build copies `ScamWithFriendsModded.dll` into `<game>/BepInEx/plugins/ScamWithFriendsModded/`. Add `-p:DeployToGame=false` to skip that.
-5. **Launch the game** and press **F8** to open the mod menu. `BepInEx/LogOutput.log` should contain `Scam With Friends Modded 0.3.0 loaded` and `Loaded 4 scam pack(s)`.
+   The build copies `Hotline.dll` into `<game>/BepInEx/plugins/Hotline/`. Add `-p:DeployToGame=false` to skip that.
+5. **Launch the game** and press **F8** to open the mod menu. `BepInEx/LogOutput.log` should contain `Hotline 0.3.0 loaded` and `Loaded 4 scam pack(s)`.
 
-Config is written to `BepInEx/config/com.krat3r.scamwithfriendsmodded.cfg` after the first launch.
+Config is written to `BepInEx/config/com.krat3r.hotline.cfg` after the first launch.
 
-To make a release, run `tools\package-release.ps1` (or `tools/package-release.sh`). It builds the mod, downloads BepInEx 5.4.23.4 (checked against a pinned SHA-256), and writes `dist/SWYF-Modded-Setup.exe` with everything embedded, plus `dist/ScamWithFriendsModded-<version>.zip` for manual installs. Upload both to a GitHub release.
+To make a release, run `tools\package-release.ps1` (or `tools/package-release.sh`). It builds the mod, downloads BepInEx 5.4.23.4 (checked against a pinned SHA-256), and writes `dist/Hotline-Setup.exe` with everything embedded, plus `dist/Hotline-<version>.zip` for manual installs. Upload both to a GitHub release.
 
 ## New scam types
 
@@ -83,7 +83,7 @@ Crypto scams (packs with a `payoutCoin`) pay in made-up coins (Bitcorn, Ethos, D
 - **Caller:** dossier on the current caller: wealth tier, estimated net worth, wariness, and which services they use. Also sets your target preference (any, or one tier).
 - **Heat:** heat meter, coin prices, what's in your wallet, and recent payouts and raids.
 - **Cheats:** pin your money and level fields (found with the built-in value finder), add money, infinite money, level lock, and turn off automatic incoming calls. In multiplayer these only work for the host.
-- **Diagnostics:** see which game classes and hooks were found, and dump the game's live scam catalog, Scamazon products and computer apps to `BepInEx/ScamWithFriendsModded-catalog.json`.
+- **Diagnostics:** see which game classes and hooks were found, and dump the game's live scam catalog, Scamazon products and computer apps to `BepInEx/Hotline-catalog.json`.
 - **Settings:** logging, whether stock scams scale with caller wealth, and a preview of the raid screen. The menu key is set in the config file.
 
 **First-time cheats setup:** the mod doesn't know yet where the game stores money and level. Open **Cheats**, press **Scan**, and pin the field whose value matches your money. If several match, earn or spend some money, scan again, and pin the one that changed. The choice is saved.
@@ -92,7 +92,7 @@ Crypto scams (packs with a `payoutCoin`) pay in made-up coins (Bitcorn, Ethos, D
 
 ### Making your own scam
 
-Drop a `.json` file in `BepInEx/config/ScamWithFriendsModded/ScamPacks/` and press **Reload scam packs**. Copy one of the [bundled packs](src/ScamWithFriendsModded/ScamPacks) as a starting point:
+Drop a `.json` file in `BepInEx/config/Hotline/ScamPacks/` and press **Reload scam packs**. Copy one of the [bundled packs](src/Hotline/ScamPacks) as a starting point:
 
 ```jsonc
 {
@@ -149,7 +149,7 @@ Typed patches like this need `Assembly-CSharp.dll`, which the build references a
 ## Tests
 
 ```
-dotnet run -c Release --project tests/ScamWithFriendsModded.Tests
+dotnet run -c Release --project tests/Hotline.Tests
 ```
 
 These check the scam injection, wealth tiers, caller prompts, heat and raids, Scamazon listing and desktop apps against stand-in classes shaped like the game's, plus the installer against temporary Steam and game folders. They can't prove the real game behaves the same, so test in game too.

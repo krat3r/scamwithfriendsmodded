@@ -1,12 +1,13 @@
 using System;
 using System.IO;
 
-namespace ScamWithFriendsModded.Installer
+namespace Hotline.Installer
 {
     /// <summary>
     /// Double-click: a numbered menu. Scripted:
-    ///   SWYF-Modded-Setup --install [--game "path"] [--repair]
-    ///   SWYF-Modded-Setup --uninstall [--all] [--game "path"] [--yes]
+    ///   Hotline-Setup --install [--game "path"] [--repair]
+    ///   Hotline-Setup --uninstall [--all] [--game "path"] [--yes]
+    ///   Hotline-Setup --check [--game "path"]     (reads BepInEx's log; exit 0 if Hotline loaded)
     /// </summary>
     internal static class Program
     {
@@ -36,6 +37,11 @@ namespace ScamWithFriendsModded.Installer
                 return 2;
             }
             var setup = new Setup(game, Payload.Default(), Console.WriteLine);
+            if (Has(args, "--check"))
+            {
+                PrintHealth(setup);
+                return setup.CheckHealth().HotlineLoaded ? 0 : 5;
+            }
             if (Setup.GameRunning()) { Console.WriteLine("Close the game first."); return 3; }
 
             if (Has(args, "--install"))
@@ -58,7 +64,7 @@ namespace ScamWithFriendsModded.Installer
                 else setup.UninstallMod();
                 return 0;
             }
-            Console.WriteLine("Use --install or --uninstall.");
+            Console.WriteLine("Use --install, --uninstall or --check.");
             return 2;
         }
 
@@ -69,7 +75,7 @@ namespace ScamWithFriendsModded.Installer
             while (true)
             {
                 Console.Clear();
-                Console.WriteLine($"Scam With Friends Modded setup  (mod version {payload.Version})");
+                Console.WriteLine($"Hotline setup  (mod version {payload.Version})");
                 Console.WriteLine(new string('-', 60));
                 if (!GameLocator.LooksLikeGame(game))
                 {
@@ -83,12 +89,18 @@ namespace ScamWithFriendsModded.Installer
                 Console.WriteLine($"Game:    {game}");
                 Console.WriteLine($"BepInEx: {(setup.BepInExInstalled ? "installed" : "not installed")}");
                 Console.WriteLine($"Mod:     {(setup.ModInstalled ? "installed, version " + setup.InstalledVersion : "not installed")}");
+                if (setup.ModInstalled)
+                {
+                    var health = setup.DescribeHealth();
+                    Console.WriteLine($"Last run: {health[health.Count > 1 ? 1 : 0]}");
+                }
                 Console.WriteLine();
                 Console.WriteLine(setup.ModInstalled ? "  1  Update / reinstall the mod" : "  1  Install the mod");
                 Console.WriteLine("  2  Repair (reinstall BepInEx and the mod)");
                 Console.WriteLine("  3  Uninstall the mod (keeps BepInEx and your settings)");
                 Console.WriteLine("  4  Uninstall everything (mod and BepInEx)");
                 Console.WriteLine("  5  Choose a different game folder");
+                Console.WriteLine("  6  Check whether the mod loaded (reads BepInEx's log)");
                 Console.WriteLine("  Q  Quit");
                 Console.Write("> ");
                 var choice = (Console.ReadLine() ?? "q").Trim().ToLowerInvariant();
@@ -96,6 +108,12 @@ namespace ScamWithFriendsModded.Installer
 
                 if (choice == "q" || choice == "") return 0;
                 if (choice == "5") { game = AskForGameFolder() ?? game; continue; }
+                if (choice == "6")
+                {
+                    PrintHealth(setup);
+                    Pause();
+                    continue;
+                }
                 if (choice is "1" or "2" or "3" or "4" && Setup.GameRunning())
                 {
                     Console.WriteLine("Close the game first, then try again.");
@@ -116,16 +134,25 @@ namespace ScamWithFriendsModded.Installer
                         if ((Console.ReadLine() ?? "").Trim() == "YES") setup.UninstallEverything();
                         else Console.WriteLine("Cancelled.");
                         break;
-                    default: Console.WriteLine("Pick 1-5 or Q."); break;
+                    default: Console.WriteLine("Pick 1-6 or Q."); break;
                 }
                 Pause();
             }
         }
 
+        private static void PrintHealth(Setup setup)
+        {
+            foreach (var line in setup.DescribeHealth()) Console.WriteLine(line);
+            Console.WriteLine();
+            Console.WriteLine("Full log: " + setup.LogPath);
+            Console.WriteLine("If you report a problem, send that file.");
+        }
+
         private static void PrintAfterInstall()
         {
             Console.WriteLine();
-            Console.WriteLine("Done. Start the game from Steam and press F8 for the mod menu.");
+            Console.WriteLine("Done. Start the game from Steam. You should see \"HOTLINE ... activated\" in the top-left corner;");
+            Console.WriteLine("press F8 for the mod menu. If you don't see it, run this setup again and pick 6.");
             Console.WriteLine("Steam Deck / Linux (Proton): set this as the game's launch option in Steam:");
             Console.WriteLine("  " + ProtonLaunchOption);
         }

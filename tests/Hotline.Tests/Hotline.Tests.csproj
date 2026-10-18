@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Runs the mod's hooks against stand-in game types. No game process needed:
+       see "Tests" in README.md for the command. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <DeployToGame>false</DeployToGame>
+    <!-- The mod targets net472 for Unity; .NET 8 runs it fine for these tests. -->
+    <NoWarn>$(NoWarn);NU1702</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Hotline/Hotline.csproj" />
+    <ProjectReference Include="../../installer/Hotline.Installer.csproj" />
+    <Reference Update="BepInEx;UnityEngine;UnityEngine.CoreModule;UnityEngine.IMGUIModule;UnityEngine.TextRenderingModule" Private="true" />
+    <!-- BepInEx's own 0Harmony targets .NET Framework/Mono; HarmonyX from NuGet runs on .NET 8. -->
+    <Reference Remove="0Harmony" />
+    <PackageReference Include="HarmonyX" Version="2.16.1" />
+    <Reference Include="Newtonsoft.Json" HintPath="$(GameManagedDir)Newtonsoft.Json.dll" Private="true" />
+  </ItemGroup>
+</Project>

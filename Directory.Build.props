@@ -22,7 +22,9 @@
     <!-- Copy the built mod into BepInEx/plugins after every build. Disable with -p:DeployToGame=false -->
     <DeployToGame Condition="'$(DeployToGame)' == ''">true</DeployToGame>
 
-    <TargetFramework>netstandard2.1</TargetFramework>
+    <!-- .NET Framework 4.7.2 loads under every Unity Mono profile. netstandard2.1 needs
+         a netstandard.dll the game may not ship, and then the plugin silently fails to load. -->
+    <TargetFramework>net472</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -30,6 +32,11 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <DebugType>portable</DebugType>
   </PropertyGroup>
+
+  <!-- Lets net472 build on any OS without the .NET Framework targeting pack installed. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
 
   <!-- Game + loader references. Private=false: never copy game DLLs into our output. -->
   <ItemGroup>

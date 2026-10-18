@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Hotline</AssemblyName>
+    <RootNamespace>Hotline</RootNamespace>
+    <Version>0.4.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Hotline.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Newtonsoft.Json" HintPath="$(GameManagedDir)Newtonsoft.Json.dll" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="ScamPacks\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

@@ -4,7 +4,7 @@ using System.IO;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
-namespace ScamWithFriendsModded.Installer
+namespace Hotline.Installer
 {
     /// <summary>Finds the game's install folder through Steam's library list.</summary>
     internal static class GameLocator

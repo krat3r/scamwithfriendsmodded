@@ -1,7 +1,7 @@
 using System.IO;
 using System.Reflection;
 
-namespace ScamWithFriendsModded.Installer
+namespace Hotline.Installer
 {
     /// <summary>
     /// The files the installer puts in place: BepInEx.zip and mod.zip, plus version.txt.
