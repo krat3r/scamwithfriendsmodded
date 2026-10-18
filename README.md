@@ -54,7 +54,7 @@ The mod targets .NET Framework 4.7.2 (not .NET Standard), because Unity games of
 
 Config is written to `BepInEx/config/com.krat3r.hotline.cfg` after the first launch.
 
-To make a release, run `tools\package-release.ps1` (or `tools/package-release.sh`). It builds the mod, downloads BepInEx 5.4.23.4 (checked against a pinned SHA-256), and writes `dist/Hotline-Setup.exe` with everything embedded, plus `dist/Hotline-<version>.zip` for manual installs. Upload both to a GitHub release.
+To make a release, run `tools\package-release.ps1` (or `tools/package-release.sh`). It builds the mod, downloads BepInEx 5.4.23.5 (checked against a pinned SHA-256), and writes `dist/Hotline-Setup.exe` with everything embedded, plus `dist/Hotline-<version>.zip` for manual installs. Upload both to a GitHub release.
 
 ## New scam types
 

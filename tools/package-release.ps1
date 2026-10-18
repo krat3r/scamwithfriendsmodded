@@ -8,9 +8,9 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 if ($GameDir) { $env:SWYF_GAME_DIR = $GameDir }
 
-$bepinexVersion = '5.4.23.4'
+$bepinexVersion = '5.4.23.5'
 $bepinexUrl = "https://github.com/BepInEx/BepInEx/releases/download/v$bepinexVersion/BepInEx_win_x64_$bepinexVersion.zip"
-$bepinexSha256 = 'F881201B79DA03E513BF97CDF39607FFA7F9E0D31A519B1AEECA8EB60F8309E7'
+$bepinexSha256 = '82F9878551030F54657792C0740D9D51A09500EEAE1FBA21106B0C441E6732C4'
 
 $payload = Join-Path $root 'installer\payload'
 $dist = Join-Path $root 'dist'

@@ -8,9 +8,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 if [ $# -ge 1 ]; then export SWYF_GAME_DIR="$1"; fi
 
-BEPINEX_VERSION="5.4.23.4"
+BEPINEX_VERSION="5.4.23.5"
 BEPINEX_URL="https://github.com/BepInEx/BepInEx/releases/download/v${BEPINEX_VERSION}/BepInEx_win_x64_${BEPINEX_VERSION}.zip"
-BEPINEX_SHA256="f881201b79da03e513bf97cdf39607ffa7f9e0d31a519b1aeeca8eb60f8309e7"
+BEPINEX_SHA256="82f9878551030f54657792c0740d9d51a09500eeae1fba21106b0c441e6732c4"
 
 PAYLOAD="$ROOT/installer/payload"
 DIST="$ROOT/dist"
