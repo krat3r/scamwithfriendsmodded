@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>ScamWithFriendsModded</AssemblyName>
+    <RootNamespace>ScamWithFriendsModded</RootNamespace>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,16 @@
+<Project>
+  <Target Name="CheckGameDir" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(BepInExCoreDir)BepInEx.dll')"
+           Text="BepInEx not found at '$(BepInExCoreDir)'. Install BepInEx 5 into the game folder, and set GameDir in Directory.Build.user.props or the SWYF_GAME_DIR environment variable (currently: '$(GameDir)')." />
+    <Error Condition="!Exists('$(GameManagedDir)UnityEngine.CoreModule.dll')"
+           Text="Game files not found at '$(GameManagedDir)'. Set GameDir in Directory.Build.user.props or the SWYF_GAME_DIR environment variable." />
+  </Target>
+
+  <Target Name="DeployToGame" AfterTargets="Build" Condition="'$(DeployToGame)' == 'true' And Exists('$(BepInExPluginsDir)')">
+    <ItemGroup>
+      <_ModFiles Include="$(TargetDir)$(TargetName).dll;$(TargetDir)$(TargetName).pdb" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_ModFiles)" DestinationFolder="$(BepInExPluginsDir)$(AssemblyName)/" SkipUnchangedFiles="true" Condition="Exists('%(FullPath)')" />
+    <Message Importance="high" Text="Deployed $(AssemblyName) to $(BepInExPluginsDir)$(AssemblyName)/" />
+  </Target>
+</Project>

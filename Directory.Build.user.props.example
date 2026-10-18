@@ -1,0 +1,6 @@
+<Project>
+  <!-- Copy to Directory.Build.user.props (gitignored) and point it at your install. -->
+  <PropertyGroup>
+    <GameDir>D:\SteamLibrary\steamapps\common\Scam With Your Friends</GameDir>
+  </PropertyGroup>
+</Project>

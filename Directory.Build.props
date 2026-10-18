@@ -1,0 +1,48 @@
+<Project>
+  <!--
+    Shared build settings for every mod in this repo.
+
+    The game path is resolved in this order:
+      1. Directory.Build.user.props (gitignored; copy from Directory.Build.user.props.example)
+      2. The SWYF_GAME_DIR environment variable
+      3. The default Steam library location
+  -->
+  <Import Project="Directory.Build.user.props" Condition="Exists('$(MSBuildThisFileDirectory)Directory.Build.user.props')" />
+
+  <PropertyGroup>
+    <GameDir Condition="'$(GameDir)' == ''">$(SWYF_GAME_DIR)</GameDir>
+    <GameDir Condition="'$(GameDir)' == '' And '$(OS)' == 'Windows_NT'">C:\Program Files (x86)\Steam\steamapps\common\Scam With Your Friends</GameDir>
+    <GameDir Condition="'$(GameDir)' == '' And '$(OS)' != 'Windows_NT'">$(HOME)/.steam/steam/steamapps/common/Scam With Your Friends</GameDir>
+    <GameDir>$([MSBuild]::EnsureTrailingSlash('$(GameDir)'))</GameDir>
+
+    <GameManagedDir>$(GameDir)Scam With Your Friends_Data/Managed/</GameManagedDir>
+    <BepInExCoreDir>$(GameDir)BepInEx/core/</BepInExCoreDir>
+    <BepInExPluginsDir>$(GameDir)BepInEx/plugins/</BepInExPluginsDir>
+
+    <!-- Copy the built mod into BepInEx/plugins after every build. Disable with -p:DeployToGame=false -->
+    <DeployToGame Condition="'$(DeployToGame)' == ''">true</DeployToGame>
+
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <DebugType>portable</DebugType>
+  </PropertyGroup>
+
+  <!-- Game + loader references. Private=false: never copy game DLLs into our output. -->
+  <ItemGroup>
+    <Reference Include="BepInEx" HintPath="$(BepInExCoreDir)BepInEx.dll" Private="false" />
+    <Reference Include="0Harmony" HintPath="$(BepInExCoreDir)0Harmony.dll" Private="false" />
+    <Reference Include="UnityEngine" HintPath="$(GameManagedDir)UnityEngine.dll" Private="false" />
+    <Reference Include="UnityEngine.CoreModule" HintPath="$(GameManagedDir)UnityEngine.CoreModule.dll" Private="false" />
+    <Reference Include="UnityEngine.IMGUIModule" HintPath="$(GameManagedDir)UnityEngine.IMGUIModule.dll" Private="false" />
+    <Reference Include="UnityEngine.TextRenderingModule" HintPath="$(GameManagedDir)UnityEngine.TextRenderingModule.dll" Private="false" />
+  </ItemGroup>
+
+  <!-- Game code. Optional so mods that only use reflection still build without it. -->
+  <ItemGroup Condition="Exists('$(GameManagedDir)Assembly-CSharp.dll')">
+    <Reference Include="Assembly-CSharp" HintPath="$(GameManagedDir)Assembly-CSharp.dll" Private="false" />
+  </ItemGroup>
+</Project>

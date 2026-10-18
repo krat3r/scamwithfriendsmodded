@@ -1,0 +1,16 @@
+# Build output
+bin/
+obj/
+*.user
+.vs/
+.idea/
+.vscode/
+
+# Local machine config (game path)
+Directory.Build.user.props
+
+# Decompiled game code — copyrighted, never commit
+decompiled/
+
+# Never commit game or BepInEx binaries
+*.dll
