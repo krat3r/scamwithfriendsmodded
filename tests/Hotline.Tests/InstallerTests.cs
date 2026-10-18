@@ -155,10 +155,10 @@ internal static class InstallerTests
         File.WriteAllText(Path.Combine(game, GameLocator.DataFolderName, "Managed", "Assembly-CSharp.dll"), "game");
         check(setup.CheckLoader().Any(c => c.Ok && c.Message.Contains("Mono build")), "loader checks recognise a Mono build");
         File.WriteAllText(Path.Combine(game, "GameAssembly.dll"), "il2cpp");
-        check(setup.CheckLoader().Any(c => !c.Ok && c.Message.Contains("IL2CPP")), "loader checks flag an IL2CPP build");
+        check(setup.CheckLoader().Any(c => !c.Ok && c.Blocker && c.Message.Contains("IL2CPP")), "loader checks flag an IL2CPP build as a blocker");
         File.Delete(Path.Combine(game, "GameAssembly.dll"));
         Directory.CreateDirectory(Path.Combine(game, "EasyAntiCheat"));
-        check(setup.CheckLoader().Any(c => !c.Ok && c.Message.Contains("Easy Anti-Cheat")), "loader checks flag anti-cheat");
+        check(setup.CheckLoader().Any(c => !c.Ok && c.Blocker && c.Message.Contains("Easy Anti-Cheat")), "loader checks flag anti-cheat as a blocker");
         Directory.Delete(Path.Combine(game, "EasyAntiCheat"));
 
         File.WriteAllText(Path.Combine(game, "winmm.dll"), "other");

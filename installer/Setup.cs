@@ -146,7 +146,9 @@ namespace Hotline.Installer
         {
             public bool Ok;
             public string Message;
-            public LoaderCheck(bool ok, string message) { Ok = ok; Message = message; }
+            /// <summary>A failure the player can't fix from their side (e.g. an unsupported game build).</summary>
+            public bool Blocker;
+            public LoaderCheck(bool ok, string message, bool blocker = false) { Ok = ok; Message = message; Blocker = blocker; }
         }
 
         /// <summary>
@@ -161,7 +163,7 @@ namespace Hotline.Installer
             bool il2cpp = File.Exists(Path.Combine(GameDir, "GameAssembly.dll"));
             bool mono = File.Exists(Path.Combine(GameDir, GameLocator.DataFolderName, "Managed", "Assembly-CSharp.dll"));
             if (il2cpp)
-                checks.Add(new LoaderCheck(false, "The game is built with IL2CPP (GameAssembly.dll). BepInEx 5 only supports Mono games, so Hotline can't load into this build. Please report this."));
+                checks.Add(new LoaderCheck(false, "This game version is built with IL2CPP (GameAssembly.dll). This Hotline version only supports Mono builds, so it can't load.", blocker: true));
             else if (mono)
                 checks.Add(new LoaderCheck(true, "Game is a Mono build (Managed/Assembly-CSharp.dll), which BepInEx 5 supports."));
 
@@ -173,7 +175,7 @@ namespace Hotline.Installer
             {
                 if (File.Exists(Path.Combine(GameDir, path)) || Directory.Exists(Path.Combine(GameDir, path)))
                 {
-                    checks.Add(new LoaderCheck(false, $"The game ships {name}, which blocks mod loaders. Hotline can't run while it's active."));
+                    checks.Add(new LoaderCheck(false, $"The game ships {name}, which blocks mod loaders. Hotline can't run while it's active.", blocker: true));
                     break;
                 }
             }
@@ -216,7 +218,7 @@ namespace Hotline.Installer
             }
 
             var arch = GameArchitecture();
-            if (arch == "x86") checks.Add(new LoaderCheck(false, "The game is 32-bit but this BepInEx is 64-bit. Please report this."));
+            if (arch == "x86") checks.Add(new LoaderCheck(false, "The game is 32-bit, but the BepInEx bundled with this Hotline version is 64-bit.", blocker: true));
             else if (arch == "x64") checks.Add(new LoaderCheck(true, "Game is 64-bit, matching BepInEx."));
 
             foreach (var name in OtherProxyNames)

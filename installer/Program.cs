@@ -170,7 +170,8 @@ namespace Hotline.Installer
                     Ui.Muted("No error mentions Hotline. If you installed after that run, start the game again and recheck.");
                 Console.WriteLine();
                 Ui.Muted("Full log: " + setup.LogPath);
-                Ui.Muted("If you report a problem, send that file.");
+                if (!health.HotlineLoaded)
+                    Ui.Info("Try 1 (reinstall the mod), start the game, then check again. If it still fails, check for a newer Hotline release.");
                 return;
             }
 
@@ -185,11 +186,16 @@ namespace Hotline.Installer
                 Ui.Muted("On Steam Deck / Linux, BepInEx only runs with the launch option shown after installing.");
             Console.WriteLine();
             Ui.Heading("Loader checks");
-            bool anyFailed = false;
+            bool anyFailed = false, blocked = false;
             foreach (var check in setup.CheckLoader())
             {
                 if (check.Ok) Ui.Ok(check.Message);
-                else { Ui.Fail(check.Message); anyFailed |= !check.Message.StartsWith("BepInEx has never started"); }
+                else
+                {
+                    Ui.Fail(check.Message);
+                    anyFailed |= !check.Message.StartsWith("BepInEx has never started");
+                    blocked |= check.Blocker;
+                }
             }
             var unity = setup.ReadUnityLog();
             if (unity != null)
@@ -198,21 +204,34 @@ namespace Hotline.Installer
                 Ui.Heading("Game build (from Unity's Player.log)");
                 Ui.Muted("Unity " + (unity.EngineVersion ?? "version unknown") + (unity.Backend != null ? " · " + unity.Backend : ""));
                 if (unity.Backend == "IL2CPP")
-                    Ui.Fail("This build runs on IL2CPP, which BepInEx 5 can't load into.");
+                {
+                    Ui.Fail("This build runs on IL2CPP, which this Hotline version can't load into.");
+                    blocked = true;
+                }
                 Ui.Muted(unity.LogPath);
             }
 
             Console.WriteLine();
-            if (!anyFailed && setup.ActiveLoader == Setup.DefaultLoader)
+            Ui.Heading("What to do");
+            if (blocked)
+            {
+                Ui.Info("Hotline can't run on this version of the game (see × above). Nothing on your PC needs fixing.");
+                Ui.Info("Pick 4 to return the game to stock, and check for a newer Hotline release that supports it.");
+            }
+            else if (anyFailed) Ui.Info("Fix the items marked × above, then start the game again and pick 6.");
+            else if (setup.ActiveLoader == Setup.DefaultLoader)
             {
                 Ui.Info("Everything is in place, so the game probably isn't loading winhttp.dll.");
-                Ui.Info("Pick 7 to switch BepInEx's loader to version.dll, then start the game again.");
+                Ui.Info("Pick 7 to switch BepInEx's loader to version.dll, then start the game again and pick 6.");
             }
-            else if (anyFailed) Ui.Info("Fix the items marked × above, then start the game again.");
             else
             {
-                Ui.Info("Every check passed but BepInEx still didn't start. Please send a screenshot of this screen,");
-                Ui.Info("the Player.log above, and a list of the files in the game folder.");
+                Ui.Info("Every check passed but BepInEx still didn't start. Try these in order, starting the game after each:");
+                Ui.Info("  a) Pick 2 (Repair).");
+                Ui.Info("  b) Make sure your antivirus didn't quarantine the loader DLL; allow the game folder if it did.");
+                Ui.Info("  c) Pick 7 to switch the loader back to winhttp.dll.");
+                Ui.Info("If none of that works, this game version probably isn't supported yet: pick 4 to return the game");
+                Ui.Info("to stock, and check for a newer Hotline release.");
             }
         }
 
