@@ -17,7 +17,7 @@ namespace Hotline
     {
         public const string Guid = "com.krat3r.hotline";
         public const string Name = "Hotline";
-        public const string Version = "0.4.0";
+        public const string Version = "0.4.1";
 
         /// <summary>Subsystems that failed to start, shown on the badge and the Diagnostics page.</summary>
         internal static readonly List<string> StartupErrors = new List<string>();
@@ -106,7 +106,7 @@ namespace Hotline
 
         private void Tick()
         {
-            if (keyFallback.PressedThisFrame()) menu.Toggle();
+            if (keyFallback.PressedThisFrame()) menu.Toggle("key (" + keyFallback.Source + ")");
             if (Time.unscaledTime < nextTick) return;
             nextTick = Time.unscaledTime + 0.5f;
             Guard(DayWatcher.Poll);
@@ -116,7 +116,7 @@ namespace Hotline
 
         private void DrawGui()
         {
-            if (showBadge.Value) Badge.Draw(menuKey.Value.ToString(), StartupErrors.Count);
+            if (showBadge.Value && Badge.Draw(menuKey.Value.ToString(), StartupErrors.Count)) menu.Toggle("badge click");
             BustedScreen.OnGUI();
             menu.OnGUI();
         }

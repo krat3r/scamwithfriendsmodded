@@ -37,12 +37,17 @@ namespace Hotline
         public KeyCode Key => toggleKey.Value;
 
         /// <summary>Opens or closes the menu. Ignores a second call in the same frame, since both input paths can see one press.</summary>
-        public void Toggle()
+        public void Toggle(string source)
         {
             int frame = Time.frameCount;
-            if (frame - lastToggleFrame <= 1) return;
+            if (frame - lastToggleFrame <= 1)
+            {
+                Mod.Log.LogInfo($"Menu toggle from {source} ignored (same press already handled).");
+                return;
+            }
             lastToggleFrame = frame;
             SetOpen(!IsOpen);
+            Mod.Log.LogInfo($"Menu {(IsOpen ? "opened" : "closed")} by {source}.");
         }
 
         public void OnGUI()
@@ -50,7 +55,7 @@ namespace Hotline
             var e = Event.current;
             if (e.type == EventType.KeyDown && e.keyCode == toggleKey.Value)
             {
-                Toggle();
+                Toggle("key (IMGUI)");
                 e.Use();
             }
             if (!IsOpen) return;
