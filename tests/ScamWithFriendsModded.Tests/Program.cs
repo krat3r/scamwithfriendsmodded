@@ -49,6 +49,7 @@ internal static class Program
         TestDump();
         TestTierScaling();
         TestRaid();
+        InstallerTests.Run(Check);
 
         harmony.UnpatchSelf();
         Console.WriteLine($"{passed} passed, {failed} failed");
@@ -67,7 +68,9 @@ internal static class Program
         var ids = session.Catalog.Select(d => d.id).ToArray();
         Check(ids.Length == 5 && ids[0] == "credit-card", "session catalog keeps stock scam and adds 4 modded: " + string.Join(",", ids));
         var zoin = session.Catalog.First(d => d.id == "zoinbase-vault");
-        Check(zoin.productId == "scam-zoinbase-vault" && zoin.appId == "zoinbase-vault" && zoin.reward == 900, "definition ids and reward set");
+        Check(zoin.productId == "scam-zoinbase-vault" && zoin.appId == "zoinbase-vault", "definition ids set");
+        Check(zoin.reward == 0, "crypto scam pays 0 game money (its payout is coins)");
+        Check(session.Catalog.First(d => d.id == "glimmail-login").reward == 350, "cash scam keeps its game reward");
         var transfer = zoin.objectives.First(o => o.id == "transfer");
         Check(transfer.final && !transfer.requiresSubmission && transfer.prerequisites.Length == 3 && transfer.criteria.Length > 20,
             "final objective converted with prerequisites and criteria");

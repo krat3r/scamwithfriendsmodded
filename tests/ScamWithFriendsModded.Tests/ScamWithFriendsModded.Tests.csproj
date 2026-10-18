@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/ScamWithFriendsModded/ScamWithFriendsModded.csproj" />
+    <ProjectReference Include="../../installer/ScamWithFriendsModded.Installer.csproj" />
     <Reference Update="BepInEx;UnityEngine;UnityEngine.CoreModule;UnityEngine.IMGUIModule;UnityEngine.TextRenderingModule" Private="true" />
     <!-- BepInEx's own 0Harmony targets .NET Framework/Mono; HarmonyX from NuGet runs on .NET 8. -->
     <Reference Remove="0Harmony" />

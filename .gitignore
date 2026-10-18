@@ -14,3 +14,7 @@ decompiled/
 
 # Never commit game or BepInEx binaries
 *.dll
+
+# Installer payload and release output (built by tools/package-release)
+installer/payload/
+dist/

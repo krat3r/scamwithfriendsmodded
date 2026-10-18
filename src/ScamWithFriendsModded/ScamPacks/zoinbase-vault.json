@@ -4,6 +4,7 @@
   "title": "Zoinbase Vault Transfer",
   "description": "Call as Zoinbase support about an 'unauthorized withdrawal' and talk the caller into moving their crypto balance to your 'secure vault wallet'.",
   "reward": 900,
+  "payoutCoin": "BTCO",
   "shop": { "price": 1500, "unlockDay": 2, "iconText": "ZB", "accentColor": "#2F6BFF" },
   "callerPersona": "You hold a few thousand dollars of crypto on Zoinbase, an exchange app on your phone, and you get anxious about it after hearing about hacks in the news. You don't fully understand wallets or recovery phrases. If someone convincingly claims to be Zoinbase support you may follow their instructions, but you hesitate if their story doesn't add up.",
   "objectives": [
