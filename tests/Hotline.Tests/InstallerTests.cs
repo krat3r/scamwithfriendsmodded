@@ -16,6 +16,7 @@ internal static class InstallerTests
             TestLocator(check, temp);
             TestInstall(check, temp);
             TestZipSlip(check, temp);
+            TestLoader(check, temp);
         }
         finally
         {
@@ -113,6 +114,61 @@ internal static class InstallerTests
         try { new Setup(game, Payload.FromFolder(payload), null).Install(); }
         catch (InvalidOperationException) { threw = true; }
         check(threw && !File.Exists(Path.Combine(temp, "escaped.txt")), "installer refuses zip entries that escape the target folder");
+    }
+
+    private static void TestLoader(Action<bool, string> check, string temp)
+    {
+        var game = Path.Combine(temp, "Game3");
+        Directory.CreateDirectory(Path.Combine(game, GameLocator.DataFolderName));
+        // Minimal PE header: "MZ", e_lfanew at 0x3C pointing to "PE\0\0" + machine 0x8664 (x64).
+        var exe = new byte[0x100];
+        exe[0] = (byte)'M'; exe[1] = (byte)'Z';
+        BitConverter.GetBytes(0x80).CopyTo(exe, 0x3C);
+        exe[0x80] = (byte)'P'; exe[0x81] = (byte)'E';
+        BitConverter.GetBytes((ushort)0x8664).CopyTo(exe, 0x84);
+        File.WriteAllBytes(Path.Combine(game, GameLocator.ExeName), exe);
+
+        var payload = Path.Combine(temp, "payload3");
+        Directory.CreateDirectory(payload);
+        MakeZip(Path.Combine(payload, Payload.BepInExZip),
+            ("winhttp.dll", "loader"), ("doorstop_config.ini", "[General]\nenabled = true\ntarget_assembly = BepInEx\\core\\BepInEx.Preloader.dll\n"),
+            ("BepInEx/core/BepInEx.dll", "core"), ("BepInEx/core/BepInEx.Preloader.dll", "pre"));
+        MakeZip(Path.Combine(payload, Payload.ModZip), ("Hotline.dll", "mod"));
+        File.WriteAllText(Path.Combine(payload, Payload.VersionFile), "1.0.0");
+
+        var setup = new Setup(game, Payload.FromFolder(payload), null);
+        setup.Install();
+        check(setup.ActiveLoader == Setup.DefaultLoader && setup.GameArchitecture() == "x64", "fresh install uses winhttp.dll and reads the game's architecture");
+        var checks = setup.CheckLoader();
+        check(checks.Count(c => !c.Ok) == 1 && checks.Any(c => !c.Ok && c.Message.Contains("never started")),
+            "loader checks pass on a clean install (only 'never started' is flagged)");
+
+        setup.SwitchLoader(Setup.AlternateLoader);
+        check(setup.ActiveLoader == Setup.AlternateLoader && !File.Exists(Path.Combine(game, "winhttp.dll")) && setup.BepInExInstalled,
+            "switching renames the loader to version.dll and BepInEx still counts as installed");
+
+        setup.Install(repairBepInEx: true);
+        check(setup.ActiveLoader == Setup.AlternateLoader && !File.Exists(Path.Combine(game, "winhttp.dll")),
+            "repair keeps the loader under version.dll instead of adding a second copy");
+
+        File.WriteAllText(Path.Combine(game, "winmm.dll"), "other");
+        check(setup.CheckLoader().Any(c => !c.Ok && c.Message.Contains("winmm.dll")), "loader checks flag another mod loader's DLL");
+        File.Delete(Path.Combine(game, "winmm.dll"));
+
+        File.Delete(Path.Combine(game, "version.dll"));
+        check(setup.ActiveLoader == null && setup.CheckLoader().Any(c => !c.Ok && c.Message.Contains("missing")),
+            "a loader removed by antivirus is reported as missing");
+        setup.Install(repairBepInEx: true);
+
+        setup.SwitchLoader(Setup.DefaultLoader);
+        File.WriteAllText(Path.Combine(game, "version.dll"), "someone else's");
+        bool refused = false;
+        try { setup.SwitchLoader(Setup.AlternateLoader); } catch (InvalidOperationException) { refused = true; }
+        check(refused && File.ReadAllText(Path.Combine(game, "version.dll")) == "someone else's", "won't overwrite another tool's version.dll");
+
+        setup.UninstallEverything();
+        check(!File.Exists(Path.Combine(game, "winhttp.dll")) && File.Exists(Path.Combine(game, "version.dll")),
+            "full uninstall removes our loader but leaves another tool's version.dll");
     }
 
     private static void MakeZip(string path, params (string name, string content)[] entries)

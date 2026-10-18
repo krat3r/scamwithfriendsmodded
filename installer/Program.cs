@@ -8,6 +8,7 @@ namespace Hotline.Installer
     ///   Hotline-Setup --install [--game "path"] [--repair]
     ///   Hotline-Setup --uninstall [--all] [--game "path"] [--yes]
     ///   Hotline-Setup --check [--game "path"]     (reads BepInEx's log; exit 0 if Hotline loaded)
+    ///   Hotline-Setup --loader version|winhttp [--game "path"]   (rename BepInEx's loader DLL)
     /// </summary>
     internal static class Program
     {
@@ -51,6 +52,12 @@ namespace Hotline.Installer
                 PrintAfterInstall();
                 return 0;
             }
+            var loader = Option(args, "--loader");
+            if (loader != null)
+            {
+                setup.SwitchLoader(loader.EndsWith(".dll") ? loader : loader + ".dll");
+                return 0;
+            }
             if (Has(args, "--uninstall"))
             {
                 if (Has(args, "--all"))
@@ -65,7 +72,7 @@ namespace Hotline.Installer
                 else setup.UninstallMod();
                 return 0;
             }
-            Console.WriteLine("Use --install, --uninstall or --check.");
+            Console.WriteLine("Use --install, --uninstall, --check or --loader.");
             return 2;
         }
 
@@ -87,7 +94,7 @@ namespace Hotline.Installer
 
                 var setup = new Setup(game, payload, Ui.Info);
                 Ui.Field("Game", game);
-                Ui.Field("BepInEx", setup.BepInExInstalled ? "installed" : "not installed",
+                Ui.Field("BepInEx", setup.BepInExInstalled ? $"installed · loader {setup.ActiveLoader}" : "not installed",
                     setup.BepInExInstalled ? Ui.StatusGood : Ui.StatusWarn);
                 Ui.Field("Mod", setup.ModInstalled ? "installed · v" + setup.InstalledVersion : "not installed",
                     setup.ModInstalled ? Ui.StatusGood : Ui.StatusWarn);
@@ -97,7 +104,10 @@ namespace Hotline.Installer
                     if (health.LogFound)
                         Ui.Field("Last run", health.HotlineLoaded ? "Hotline loaded" : "Hotline did NOT load",
                             health.HotlineLoaded ? Ui.StatusGood : Ui.StatusBad);
+                    else
+                        Ui.Field("Last run", "BepInEx hasn't started yet", Ui.StatusWarn);
                 }
+                string otherLoader = setup.ActiveLoader == Setup.AlternateLoader ? Setup.DefaultLoader : Setup.AlternateLoader;
                 Console.WriteLine();
                 Ui.Option("1", setup.ModInstalled ? "Update / reinstall the mod" : "Install the mod");
                 Ui.Option("2", "Repair (reinstall BepInEx and the mod)");
@@ -105,6 +115,8 @@ namespace Hotline.Installer
                 Ui.Option("4", "Uninstall everything " + Dim("(mod and BepInEx)"));
                 Ui.Option("5", "Choose a different game folder");
                 Ui.Option("6", "Check whether the mod loaded " + Dim("(reads BepInEx's log)"));
+                if (setup.BepInExInstalled)
+                    Ui.Option("7", $"Switch BepInEx's loader to {otherLoader} " + Dim("(if BepInEx never starts)"));
                 Ui.Option("Q", "Quit");
                 var choice = Ui.Prompt("Choose an option:").ToLowerInvariant();
                 Console.WriteLine();
@@ -117,7 +129,7 @@ namespace Hotline.Installer
                     Pause();
                     continue;
                 }
-                if (choice is "1" or "2" or "3" or "4" && Setup.GameRunning())
+                if (choice is "1" or "2" or "3" or "4" or "7" && Setup.GameRunning())
                 {
                     Ui.Warn("Close the game first, then try again.");
                     Pause();
@@ -136,7 +148,8 @@ namespace Hotline.Installer
                         if (Ui.Prompt("Type YES to remove BepInEx and the mod:") == "YES") { setup.UninstallEverything(); Ui.Ok("Done."); }
                         else Ui.Info("Cancelled.");
                         break;
-                    default: Ui.Warn("Pick 1-6 or Q."); break;
+                    case "7" when setup.BepInExInstalled: setup.SwitchLoader(otherLoader); Ui.Ok("Done."); break;
+                    default: Ui.Warn("Pick one of the numbers shown, or Q."); break;
                 }
                 Pause();
             }
@@ -147,13 +160,44 @@ namespace Hotline.Installer
             Console.WriteLine();
             Ui.Heading("Mod health");
             var health = setup.CheckHealth();
-            if (!health.LogFound) Ui.Warn(setup.DescribeHealth()[0]);
-            else if (health.HotlineLoaded) Ui.Ok("Hotline loaded in the last run.");
-            else Ui.Fail("Hotline did NOT load in the last run.");
-            foreach (var line in setup.DescribeHealth()) Ui.Muted(line);
+            if (health.LogFound)
+            {
+                Ui.Muted($"BepInEx last ran {health.LogTime:g}.");
+                if (health.HotlineLoaded) Ui.Ok("Hotline loaded: " + health.HotlineLine);
+                else Ui.Fail("Hotline did NOT load in that run.");
+                foreach (var problem in health.Problems) Ui.Fail(problem);
+                if (!health.HotlineLoaded && health.Problems.Count == 0)
+                    Ui.Muted("No error mentions Hotline. If you installed after that run, start the game again and recheck.");
+                Console.WriteLine();
+                Ui.Muted("Full log: " + setup.LogPath);
+                Ui.Muted("If you report a problem, send that file.");
+                return;
+            }
+
+            if (!setup.BepInExInstalled && setup.ActiveLoader == null && !File.Exists(Path.Combine(setup.BepInExDir, "core", "BepInEx.dll")))
+            {
+                Ui.Warn("BepInEx isn't installed yet. Pick 1 to install.");
+                return;
+            }
+            Ui.Warn("BepInEx hasn't written a log, so it never started.");
+            Ui.Muted("If you haven't launched the game since installing, start it from Steam, reach the main menu, then check again.");
+            if (!OperatingSystem.IsWindows())
+                Ui.Muted("On Steam Deck / Linux, BepInEx only runs with the launch option shown after installing.");
             Console.WriteLine();
-            Ui.Muted("Full log: " + setup.LogPath);
-            Ui.Muted("If you report a problem, send that file.");
+            Ui.Heading("Loader checks");
+            bool anyFailed = false;
+            foreach (var check in setup.CheckLoader())
+            {
+                if (check.Ok) Ui.Ok(check.Message);
+                else { Ui.Fail(check.Message); anyFailed |= !check.Message.StartsWith("BepInEx has never started"); }
+            }
+            Console.WriteLine();
+            if (!anyFailed && setup.ActiveLoader == Setup.DefaultLoader)
+            {
+                Ui.Info("Everything is in place, so the game probably isn't loading winhttp.dll.");
+                Ui.Info("Pick 7 to switch BepInEx's loader to version.dll, then start the game again.");
+            }
+            else if (anyFailed) Ui.Info("Fix the items marked × above, then start the game again.");
         }
 
         private static void PrintAfterInstall()
