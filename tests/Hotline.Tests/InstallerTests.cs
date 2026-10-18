@@ -15,6 +15,7 @@ internal static class InstallerTests
             TestVdf(check);
             TestLocator(check, temp);
             TestInstall(check, temp);
+            TestCorlibSetup(check, temp);
             TestZipSlip(check, temp);
             TestLoader(check, temp);
         }
@@ -49,21 +50,14 @@ internal static class InstallerTests
 
     private static void TestInstall(Action<bool, string> check, string temp)
     {
-        var game = Path.Combine(temp, "Game");
-        Directory.CreateDirectory(Path.Combine(game, GameLocator.DataFolderName));
-        var payload = Path.Combine(temp, "payload");
-        Directory.CreateDirectory(payload);
-        MakeZip(Path.Combine(payload, Payload.BepInExZip),
-            ("winhttp.dll", "loader"), ("doorstop_config.ini", "cfg"), ("BepInEx/core/BepInEx.dll", "core"));
-        MakeZip(Path.Combine(payload, Payload.ModZip),
-            ("Hotline.dll", "mod"), ("ScamPacks/a.json", "{}"));
-        File.WriteAllText(Path.Combine(payload, Payload.VersionFile), "9.9.9");
+        var game = MakeGame(temp, "Game");
+        var payload = MakePayload(temp, "payload", "9.9.9", ("Hotline.dll", "mod"), ("ScamPacks/a.json", "{}"));
 
         var setup = new Setup(game, Payload.FromFolder(payload), null);
-        setup.Install();
-        check(setup.BepInExInstalled && setup.ModInstalled && setup.InstalledVersion == "9.9.9"
+        var problems = setup.Install();
+        check(problems.Count == 0 && setup.BepInExInstalled && setup.ModInstalled && setup.InstalledVersion == "9.9.9"
             && File.Exists(Path.Combine(setup.PluginDir, "ScamPacks", "a.json")),
-            "install puts BepInEx next to the game and the mod in BepInEx/plugins");
+            "install sets up BepInEx, passes its own verification, and puts the mod in BepInEx/plugins");
 
         Directory.CreateDirectory(Path.Combine(game, "BepInEx", "plugins", "SomeoneElsesMod"));
         check(setup.OtherPlugins().SequenceEqual(new[] { "SomeoneElsesMod" }), "installer notices other BepInEx mods");
@@ -79,7 +73,7 @@ internal static class InstallerTests
         check(!setup.CheckHealth().LogFound, "health check reports no log before BepInEx has run");
         File.WriteAllLines(setup.LogPath, new[]
         {
-            "[Message:   BepInEx] BepInEx 5.4.23.4 - Scam With Your Friends",
+            "[Message:   BepInEx] BepInEx 5.4.23.5 - Scam With Your Friends",
             "[Info   :   BepInEx] Chainloader started",
             "[Info   :   BepInEx] Loading [Hotline 0.4.0]",
             "[Error  :   Hotline] Scam packs failed to start: boom",
@@ -99,27 +93,69 @@ internal static class InstallerTests
         setup.Install();
         setup.UninstallEverything();
         check(!Directory.Exists(Path.Combine(game, "BepInEx")) && !File.Exists(Path.Combine(game, "winhttp.dll"))
-            && Directory.Exists(Path.Combine(game, GameLocator.DataFolderName)),
+            && !Directory.Exists(setup.OverrideDir) && Directory.Exists(Path.Combine(game, GameLocator.DataFolderName)),
             "full uninstall returns the game folder to stock");
+    }
+
+    /// <summary>The stripped-corlib fix: what the community setup adds, and how the installer keeps it current.</summary>
+    private static void TestCorlibSetup(Action<bool, string> check, string temp)
+    {
+        var game = MakeGame(temp, "GameCorlib");
+        var payload = MakePayload(temp, "payloadCorlib", "1.0.0", ("Hotline.dll", "mod"));
+        var setup = new Setup(game, Payload.FromFolder(payload), null);
+        setup.Install();
+
+        var seeded = ScamWYF.Setup.SetupPayload.CorlibAssemblyNames.All(n => File.Exists(Path.Combine(setup.OverrideDir, n)));
+        var ini = File.ReadAllText(Path.Combine(game, "doorstop_config.ini"));
+        check(seeded && ini.Contains("dll_search_path_override=unstripped_corlib") && File.Exists(setup.SetupLogPath),
+            "install seeds the 8 full .NET libraries and points the loader at them (details in hotline-setup.log)");
+
+        // A game set up by the previous Hotline version: plain BepInEx config, no override folder.
+        File.WriteAllText(Path.Combine(game, "doorstop_config.ini"), "[General]\nenabled = true\ntarget_assembly=BepInEx\\core\\BepInEx.Preloader.dll\n");
+        Directory.Delete(setup.OverrideDir, true);
+        var checks = setup.CheckLoader();
+        check(!setup.BepInExInstalled && checks.Any(c => !c.Ok && c.Message.Contains("unstripped_corlib"))
+            && checks.Any(c => !c.Ok && c.Message.Contains("isn't set to use")),
+            "an install without the library override counts as not set up, and the checks say why");
+        setup.Install();
+        check(setup.BepInExInstalled, "install fixes an old setup that lacks the override");
+
+        // After a game update: a patched copy older than the game's file would shadow it.
+        var copy = Path.Combine(setup.OverrideDir, "GameCode.dll");
+        var original = Path.Combine(setup.ManagedDir, "GameCode.dll");
+        File.WriteAllText(copy, "old patched copy");
+        File.WriteAllText(original, "updated game file");
+        File.SetLastWriteTimeUtc(copy, DateTime.UtcNow.AddDays(-2));
+        File.SetLastWriteTimeUtc(original, DateTime.UtcNow.AddDays(-1));
+        check(setup.StaleOverrides().SequenceEqual(new[] { "GameCode.dll" })
+            && setup.CheckLoader().Any(c => !c.Ok && c.Message.Contains("game was updated")),
+            "a patched copy older than the game's file is flagged as needing Repair");
+        File.Delete(original);
+        setup.Install();
+        check(!File.Exists(copy), "install rebuilds the override folder from scratch, dropping stale copies");
+
+        var notMono = MakeGame(temp, "GameNoManaged");
+        File.Delete(Path.Combine(notMono, GameLocator.DataFolderName, "Managed", "mscorlib.dll"));
+        string message = null;
+        try { new Setup(notMono, Payload.FromFolder(payload), null).Install(); }
+        catch (InvalidOperationException e) { message = e.Message; }
+        check(message != null && message.Contains("newer Hotline release") && !Directory.Exists(Path.Combine(notMono, "BepInEx")),
+            "install stops before touching a game without the Mono files, with a plain message");
     }
 
     private static void TestZipSlip(Action<bool, string> check, string temp)
     {
-        var game = Path.Combine(temp, "Game2");
-        Directory.CreateDirectory(Path.Combine(game, GameLocator.DataFolderName));
-        var payload = Path.Combine(temp, "bad-payload");
-        Directory.CreateDirectory(payload);
-        MakeZip(Path.Combine(payload, Payload.ModZip), ("../../escaped.txt", "nope"));
+        var game = MakeGame(temp, "Game2");
+        var payload = MakePayload(temp, "bad-payload", "1.0.0", ("../../escaped.txt", "nope"));
         bool threw = false;
         try { new Setup(game, Payload.FromFolder(payload), null).Install(); }
-        catch (InvalidOperationException) { threw = true; }
+        catch (InvalidOperationException e) { threw = e.Message.Contains("Unsafe path"); }
         check(threw && !File.Exists(Path.Combine(temp, "escaped.txt")), "installer refuses zip entries that escape the target folder");
     }
 
     private static void TestLoader(Action<bool, string> check, string temp)
     {
-        var game = Path.Combine(temp, "Game3");
-        Directory.CreateDirectory(Path.Combine(game, GameLocator.DataFolderName));
+        var game = MakeGame(temp, "Game3");
         // Minimal PE header: "MZ", e_lfanew at 0x3C pointing to "PE\0\0" + machine 0x8664 (x64).
         var exe = new byte[0x100];
         exe[0] = (byte)'M'; exe[1] = (byte)'Z';
@@ -128,14 +164,7 @@ internal static class InstallerTests
         BitConverter.GetBytes((ushort)0x8664).CopyTo(exe, 0x84);
         File.WriteAllBytes(Path.Combine(game, GameLocator.ExeName), exe);
 
-        var payload = Path.Combine(temp, "payload3");
-        Directory.CreateDirectory(payload);
-        MakeZip(Path.Combine(payload, Payload.BepInExZip),
-            ("winhttp.dll", "loader"), ("doorstop_config.ini", "[General]\nenabled = true\ntarget_assembly = BepInEx\\core\\BepInEx.Preloader.dll\n"),
-            ("BepInEx/core/BepInEx.dll", "core"), ("BepInEx/core/BepInEx.Preloader.dll", "pre"));
-        MakeZip(Path.Combine(payload, Payload.ModZip), ("Hotline.dll", "mod"));
-        File.WriteAllText(Path.Combine(payload, Payload.VersionFile), "1.0.0");
-
+        var payload = MakePayload(temp, "payload3", "1.0.0", ("Hotline.dll", "mod"));
         var setup = new Setup(game, Payload.FromFolder(payload), null);
         setup.Install();
         check(setup.ActiveLoader == Setup.DefaultLoader && setup.GameArchitecture() == "x64", "fresh install uses winhttp.dll and reads the game's architecture");
@@ -147,11 +176,10 @@ internal static class InstallerTests
         check(setup.ActiveLoader == Setup.AlternateLoader && !File.Exists(Path.Combine(game, "winhttp.dll")) && setup.BepInExInstalled,
             "switching renames the loader to version.dll and BepInEx still counts as installed");
 
-        setup.Install(repairBepInEx: true);
+        setup.Install();
         check(setup.ActiveLoader == Setup.AlternateLoader && !File.Exists(Path.Combine(game, "winhttp.dll")),
             "repair keeps the loader under version.dll instead of adding a second copy");
 
-        Directory.CreateDirectory(Path.Combine(game, GameLocator.DataFolderName, "Managed"));
         File.WriteAllText(Path.Combine(game, GameLocator.DataFolderName, "Managed", "Assembly-CSharp.dll"), "game");
         check(setup.CheckLoader().Any(c => c.Ok && c.Message.Contains("Mono build")), "loader checks recognise a Mono build");
         File.WriteAllText(Path.Combine(game, "GameAssembly.dll"), "il2cpp");
@@ -168,7 +196,8 @@ internal static class InstallerTests
         File.Delete(Path.Combine(game, "version.dll"));
         check(setup.ActiveLoader == null && setup.CheckLoader().Any(c => !c.Ok && c.Message.Contains("missing")),
             "a loader removed by antivirus is reported as missing");
-        setup.Install(repairBepInEx: true);
+        setup.Install();
+        check(setup.ActiveLoader == Setup.AlternateLoader, "repair restores a missing loader");
 
         setup.SwitchLoader(Setup.DefaultLoader);
         File.WriteAllText(Path.Combine(game, "version.dll"), "someone else's");
@@ -179,6 +208,29 @@ internal static class InstallerTests
         setup.UninstallEverything();
         check(!File.Exists(Path.Combine(game, "winhttp.dll")) && File.Exists(Path.Combine(game, "version.dll")),
             "full uninstall removes our loader but leaves another tool's version.dll");
+    }
+
+    /// <summary>A fake game folder whose Managed/mscorlib.dll is a real assembly (the patchers read it).</summary>
+    private static string MakeGame(string temp, string name)
+    {
+        var game = Path.Combine(temp, name);
+        var managed = Path.Combine(game, GameLocator.DataFolderName, "Managed");
+        Directory.CreateDirectory(managed);
+        using (var source = ScamWYF.Setup.SetupPayload.Embedded().OpenCorlib("mscorlib.dll"))
+        using (var file = File.Create(Path.Combine(managed, "mscorlib.dll")))
+            source.CopyTo(file);
+        return game;
+    }
+
+    private static string MakePayload(string temp, string name, string version, params (string name, string content)[] modEntries)
+    {
+        var payload = Path.Combine(temp, name);
+        Directory.CreateDirectory(payload);
+        MakeZip(Path.Combine(payload, Payload.BepInExZip),
+            ("winhttp.dll", "bepinex's own loader"), ("BepInEx/core/BepInEx.dll", "core"), ("BepInEx/core/BepInEx.Preloader.dll", "pre"));
+        MakeZip(Path.Combine(payload, Payload.ModZip), modEntries);
+        File.WriteAllText(Path.Combine(payload, Payload.VersionFile), version);
+        return payload;
     }
 
     private static void MakeZip(string path, params (string name, string content)[] entries)

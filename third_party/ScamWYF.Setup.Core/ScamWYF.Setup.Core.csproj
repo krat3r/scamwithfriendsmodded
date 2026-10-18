@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Vendored from https://github.com/swyf-modding/Setup (MIT), commit
+    02a97179b4db3e59be4d04850411595b170a85e3, src/ScamWYF.Setup.Core. See NOTICE.md.
+    Only change from upstream: targets net8.0 (upstream: net10.0) to match this repo's SDK,
+    and the embedded-resource paths point at ./vendor.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>ScamWYF.Setup.Core</AssemblyName>
+    <RootNamespace>ScamWYF.Setup</RootNamespace>
+    <Deterministic>true</Deterministic>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- Upstream code; don't fail our build on its style warnings. -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CS1591;CA1416</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Mono.Cecil" Version="0.11.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="vendor/corlib/mscorlib.dll" LogicalName="payload/corlib/mscorlib.dll" />
+    <EmbeddedResource Include="vendor/corlib/System.dll" LogicalName="payload/corlib/System.dll" />
+    <EmbeddedResource Include="vendor/corlib/System.Core.dll" LogicalName="payload/corlib/System.Core.dll" />
+    <EmbeddedResource Include="vendor/corlib/System.Configuration.dll" LogicalName="payload/corlib/System.Configuration.dll" />
+    <EmbeddedResource Include="vendor/corlib/System.Numerics.dll" LogicalName="payload/corlib/System.Numerics.dll" />
+    <EmbeddedResource Include="vendor/corlib/System.Security.dll" LogicalName="payload/corlib/System.Security.dll" />
+    <EmbeddedResource Include="vendor/corlib/System.Xml.dll" LogicalName="payload/corlib/System.Xml.dll" />
+    <EmbeddedResource Include="vendor/corlib/Mono.Security.dll" LogicalName="payload/corlib/Mono.Security.dll" />
+
+    <EmbeddedResource Include="vendor/doorstop/winhttp.dll" LogicalName="payload/doorstop/winhttp.dll" />
+    <EmbeddedResource Include="vendor/doorstop/.doorstop_version" LogicalName="payload/doorstop/.doorstop_version" />
+    <EmbeddedResource Include="vendor/doorstop/doorstop_config.ini" LogicalName="payload/doorstop/doorstop_config.ini" />
+  </ItemGroup>
+
+</Project>

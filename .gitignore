@@ -18,3 +18,6 @@ decompiled/
 # Installer payload and release output (built by tools/package-release)
 installer/payload/
 dist/
+
+# Vendored third-party binaries are committed on purpose (see third_party/*/NOTICE.md)
+!third_party/**/*.dll

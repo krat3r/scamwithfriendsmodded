@@ -1,0 +1,3 @@
+<Project>
+  <!-- Third-party code: keep the repo-root build targets (game-folder check, deploy) out. -->
+</Project>

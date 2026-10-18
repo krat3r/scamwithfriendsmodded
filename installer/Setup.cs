@@ -3,12 +3,18 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using ScamWYF.Setup;
+using ScamWYF.Setup.Patching;
 
 namespace Hotline.Installer
 {
     /// <summary>Install, update and uninstall steps against one game folder.</summary>
     internal sealed class Setup
     {
+        /// <summary>The Unity version the vendored unstripped libraries come from (third_party/ScamWYF.Setup.Core).</summary>
+        public const string BundledUnityVersion = "6000.3.10f1";
+        private const string SetupLogName = "hotline-setup.log";
+
         public const string PluginFolderName = "Hotline";
         /// <summary>Folder names earlier versions used; removed on install so two copies never load.</summary>
         private static readonly string[] LegacyPluginFolders = { "ScamWithFriendsModded" };
@@ -39,7 +45,46 @@ namespace Hotline.Installer
 
         public string BepInExDir => Path.Combine(GameDir, "BepInEx");
         public string PluginDir => Path.Combine(BepInExDir, "plugins", PluginFolderName);
-        public bool BepInExInstalled => File.Exists(Path.Combine(BepInExDir, "core", "BepInEx.dll")) && ActiveLoader != null;
+        public string OverrideDir => Path.Combine(GameDir, "unstripped_corlib");
+        public string ManagedDir => Path.Combine(GameDir, GameLocator.DataFolderName, "Managed");
+        public string SetupLogPath => Path.Combine(BepInExDir, SetupLogName);
+
+        /// <summary>BepInEx can start: loader, BepInEx itself, and the unstripped libraries it needs in this game.</summary>
+        public bool BepInExInstalled =>
+            File.Exists(Path.Combine(BepInExDir, "core", "BepInEx.dll")) && ActiveLoader != null
+            && File.Exists(Path.Combine(OverrideDir, "mscorlib.dll")) && DoorstopUsesOverride;
+
+        private bool DoorstopUsesOverride
+        {
+            get
+            {
+                var ini = Path.Combine(GameDir, "doorstop_config.ini");
+                try
+                {
+                    return File.Exists(ini) && System.Text.RegularExpressions.Regex.IsMatch(
+                        File.ReadAllText(ini), "dll_search_path_override\\s*=\\s*unstripped_corlib");
+                }
+                catch { return false; }
+            }
+        }
+
+        /// <summary>
+        /// Patched copies of game files in unstripped_corlib that are older than the game's own,
+        /// i.e. the game was updated since setup ran. They'd shadow the new files, so setup must re-run.
+        /// </summary>
+        public List<string> StaleOverrides()
+        {
+            var stale = new List<string>();
+            if (!Directory.Exists(OverrideDir) || !Directory.Exists(ManagedDir)) return stale;
+            foreach (var copy in Directory.EnumerateFiles(OverrideDir, "*.dll"))
+            {
+                var name = Path.GetFileName(copy);
+                if (Array.IndexOf(SetupPayload.CorlibAssemblyNames, name) >= 0) continue;
+                var original = Path.Combine(ManagedDir, name);
+                if (File.Exists(original) && File.GetLastWriteTimeUtc(original) > File.GetLastWriteTimeUtc(copy)) stale.Add(name);
+            }
+            return stale;
+        }
 
         private string MarkerPath => Path.Combine(BepInExDir, LoaderMarker);
 
@@ -189,6 +234,17 @@ namespace Hotline.Installer
                 ? new LoaderCheck(true, $"Loader file present: {loader}")
                 : new LoaderCheck(false, $"Loader file {ChosenLoader} is missing. Antivirus often removes it: allow it, then pick Repair."));
 
+            // This game strips its .NET libraries; without the override BepInEx crashes before it can log anything.
+            checks.Add(File.Exists(Path.Combine(OverrideDir, "mscorlib.dll"))
+                ? new LoaderCheck(true, "Full .NET libraries present (unstripped_corlib).")
+                : new LoaderCheck(false, "The full .NET libraries BepInEx needs are missing (unstripped_corlib). Pick Repair."));
+            checks.Add(DoorstopUsesOverride
+                ? new LoaderCheck(true, "Loader is set to use them.")
+                : new LoaderCheck(false, "The loader isn't set to use the full .NET libraries. Pick Repair."));
+            var stale = StaleOverrides();
+            if (stale.Count > 0)
+                checks.Add(new LoaderCheck(false, $"The game was updated since setup ran ({string.Join(", ", stale)} changed). Pick Repair."));
+
             var ini = Path.Combine(GameDir, "doorstop_config.ini");
             if (!File.Exists(ini)) checks.Add(new LoaderCheck(false, "doorstop_config.ini is missing. Pick Repair."));
             else
@@ -315,33 +371,85 @@ namespace Hotline.Installer
             catch { return false; }
         }
 
-        /// <summary>Installs BepInEx if it's missing (or <paramref name="repairBepInEx"/>), then installs or replaces the mod.</summary>
-        public void Install(bool repairBepInEx = false)
+        /// <summary>
+        /// Sets up BepInEx for this game from scratch, then installs or replaces the mod. Always
+        /// redoes the BepInEx part: it takes seconds, and it's what makes Install also the fix
+        /// after a game update. Returns problems the final verification found (empty when ready).
+        /// </summary>
+        public List<string> Install()
         {
             if (!payload.Has(Payload.ModZip)) throw new InvalidOperationException("This installer has no mod files in it. Download the release .exe again.");
+            if (!payload.Has(Payload.BepInExZip)) throw new InvalidOperationException("This installer doesn't include BepInEx. Download the release .exe again.");
+            if (!File.Exists(Path.Combine(ManagedDir, "mscorlib.dll")))
+                throw new InvalidOperationException(
+                    "This game version doesn't have the Mono files BepInEx 5 needs (" + GameLocator.DataFolderName + "/Managed). " +
+                    "Hotline can't run on it yet; check for a newer Hotline release.");
 
-            if (!BepInExInstalled || repairBepInEx)
-            {
-                if (!payload.Has(Payload.BepInExZip)) throw new InvalidOperationException("BepInEx isn't installed and this installer doesn't include it.");
-                log("Installing BepInEx 5...");
-                bool useAlternate = ChosenLoader == AlternateLoader;
-                Extract(Payload.BepInExZip, GameDir);
-                // The zip ships winhttp.dll; keep the loader under the name the player switched to.
-                if (useAlternate && File.Exists(Path.Combine(GameDir, DefaultLoader)))
-                {
-                    File.Copy(Path.Combine(GameDir, DefaultLoader), Path.Combine(GameDir, AlternateLoader), overwrite: true);
-                    File.Delete(Path.Combine(GameDir, DefaultLoader));
-                }
-            }
-            else log("BepInEx is already installed.");
+            var problems = SetUpBepInEx();
 
-            log("Installing the mod...");
+            log("Installing Hotline...");
             RemoveLegacyFolders();
             if (Directory.Exists(PluginDir)) Directory.Delete(PluginDir, recursive: true);
             Directory.CreateDirectory(PluginDir);
             Extract(Payload.ModZip, PluginDir);
             File.WriteAllText(Path.Combine(PluginDir, InstalledVersionFile), payload.Version);
-            log($"Installed version {payload.Version}.");
+            log($"Installed Hotline {payload.Version}.");
+            return problems;
+        }
+
+        /// <summary>
+        /// The game strips its .NET libraries, so plain BepInEx crashes on start. This runs the
+        /// community setup (third_party/ScamWYF.Setup.Core): loader pointed at an override folder,
+        /// unstripped libraries in it, and patched copies of the game files that clash with them.
+        /// The game's own Managed folder is never written to.
+        /// </summary>
+        private List<string> SetUpBepInEx()
+        {
+            Directory.CreateDirectory(BepInExDir);
+            using var writer = new StreamWriter(SetupLogPath, append: false);
+            var detail = new DelegateSetupLog((level, message) => writer.WriteLine($"[{level}] {message}"));
+            var game = GameInstall.Resolve(GameDir);
+
+            // The community loader is winhttp.dll; put it back under version.dll afterwards if the player switched.
+            bool useAlternate = ChosenLoader == AlternateLoader;
+            if (useAlternate && File.Exists(Path.Combine(GameDir, AlternateLoader))) File.Delete(Path.Combine(GameDir, AlternateLoader));
+
+            // Start clean so patched copies always match the game's current files (stale ones break the game after updates).
+            if (Directory.Exists(OverrideDir)) Directory.Delete(OverrideDir, recursive: true);
+
+            var bepInExZip = Path.Combine(Path.GetTempPath(), "hotline-bepinex-" + Guid.NewGuid().ToString("N") + ".zip");
+            try
+            {
+                using (var source = payload.Open(Payload.BepInExZip))
+                using (var file = File.Create(bepInExZip))
+                    source.CopyTo(file);
+
+                log($"Installing the loader and BepInEx {GameInstall.BepInExVersion}...");
+                new LoaderInstaller().Install(game, SetupPayload.Embedded(),
+                    new InstallOptions { BepInExZip = bepInExZip, Force = true, BepInExVersion = GameInstall.BepInExVersion }, detail);
+            }
+            finally
+            {
+                try { File.Delete(bepInExZip); } catch { }
+            }
+
+            log("Adding the full .NET libraries BepInEx needs (the game ships trimmed ones)...");
+            new CorlibSeeder().Seed(game, SetupPayload.Embedded(), detail);
+
+            log("Patching copies of game files to match them (the game's own files aren't touched)...");
+            new AwaiterUnstripper().Run(game, AwaiterUnstripper.DefaultAssemblies, null, detail);
+            new VtableBreakFixer().Run(game, fix: true, assemblies: null, unstripped: null, log: detail);
+
+            if (useAlternate)
+            {
+                File.Move(Path.Combine(GameDir, DefaultLoader), Path.Combine(GameDir, AlternateLoader), overwrite: true);
+                File.WriteAllText(MarkerPath, AlternateLoader);
+            }
+
+            log("Checking the setup...");
+            var problems = new List<string>(new SetupVerifier().Verify(game, detail));
+            writer.WriteLine(problems.Count == 0 ? "[Verify] ok" : "[Verify] " + string.Join("; ", problems));
+            return problems;
         }
 
         /// <summary>Removes only this mod. BepInEx, other mods and your config stay.</summary>
@@ -369,6 +477,7 @@ namespace Hotline.Installer
                 if (File.Exists(path)) File.Delete(path);
             }
             if (Directory.Exists(BepInExDir)) Directory.Delete(BepInExDir, recursive: true);
+            if (Directory.Exists(OverrideDir)) Directory.Delete(OverrideDir, recursive: true);
             log("Removed BepInEx. The game is back to stock.");
         }
 

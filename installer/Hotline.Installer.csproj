@@ -21,6 +21,17 @@
     <InternalsVisibleTo Include="Hotline.Tests" />
   </ItemGroup>
 
+  <!-- Community setup library: makes BepInEx start in this game (see third_party/ScamWYF.Setup.Core/NOTICE.md). -->
+  <ItemGroup>
+    <ProjectReference Include="..\third_party\ScamWYF.Setup.Core\ScamWYF.Setup.Core.csproj" />
+  </ItemGroup>
+
+  <!-- Mono.Cecil reads and writes assemblies through reflection-heavy code; keep the trimmer away from it. -->
+  <ItemGroup>
+    <TrimmerRootAssembly Include="Mono.Cecil" />
+    <TrimmerRootAssembly Include="ScamWYF.Setup.Core" />
+  </ItemGroup>
+
   <!-- Release builds embed the payload so the .exe is all a player needs. -->
   <ItemGroup>
     <!-- Wildcards so a dev build without a payload folder still compiles. -->

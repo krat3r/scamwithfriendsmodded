@@ -13,7 +13,8 @@ The game is a Unity (Mono) game, so mods are [BepInEx 5](https://github.com/BepI
 | --- | --- |
 | `src/Hotline/` | The mod: new scam types loaded from JSON, Scamazon/computer app hooks, and the F8 mod menu |
 | `src/Hotline/ScamPacks/` | The bundled scam types (one JSON file each) |
-| `installer/` | `Hotline-Setup.exe`: finds the game, installs BepInEx and the mod, uninstalls |
+| `installer/` | `Hotline-Setup.exe`: finds the game, sets up BepInEx for it, installs the mod, checks and uninstalls |
+| `third_party/ScamWYF.Setup.Core/` | Vendored [community setup](https://github.com/swyf-modding/Setup) that makes BepInEx start in this game (see its `NOTICE.md`) |
 | `tests/Hotline.Tests/` | Runs the hooks and installer against stand-in game classes and folders, no game process needed |
 | `Directory.Build.props` / `.targets` | Shared build setup: finds the game, references its DLLs, deploys the built mod into `BepInEx/plugins` |
 | `tools/decompile.ps1`, `tools/decompile.sh` | Decompiles the game's code into `decompiled/` (gitignored) so you can find things to hook |
@@ -26,15 +27,27 @@ The game is a Unity (Mono) game, so mods are [BepInEx 5](https://github.com/BepI
 2. Close the game and run it. It finds the game through Steam (or asks for the folder), then offers **Install**, **Repair**, **Uninstall the mod**, and **Uninstall everything**.
 3. Start the game from Steam. A small **HOTLINE · activated** tag appears in the top-left corner; press **F8** for the menu.
 
-**No tag in the corner?** The mod didn't load. Run the setup again and pick **6 (Check whether the mod loaded)**: it reads BepInEx's log and tells you whether BepInEx ran, whether Hotline loaded, and the error if not. Send `BepInEx/LogOutput.log` with any bug report. If the tag says there were startup problems, open F8 → **Diagnostics** to see them.
+**After a game update, run the setup again and pick 2 (Repair).** Updates can replace game files the setup patched copies of; Repair rebuilds them in seconds. Option 6 tells you when this is needed.
+
+**No tag in the corner?** The mod didn't load. Run the setup again and pick **6 (Check whether the mod loaded)**: it reads BepInEx's log and checks the setup, then ends with a "What to do" list you can follow yourself. If the tag says there were startup problems, open F8 → **Diagnostics** to see them.
 
 BepInEx loads the mod automatically every time the game starts; there's nothing else to run. Uninstalling the mod keeps BepInEx and your settings. "Uninstall everything" also removes BepInEx and warns you if other BepInEx mods would break.
 
-**Steam Deck / Linux (Proton):** set the game's launch option in Steam to `WINEDLLOVERRIDES="winhttp=n,b" %command%`, or BepInEx won't load.
+**Steam Deck / Linux (Proton):** set the game's launch option in Steam to `WINEDLLOVERRIDES="winhttp=n,b" %command% -whisper-cpu`, or BepInEx won't load.
 
-**Windows SmartScreen** may warn that the .exe is unrecognized, because it isn't code-signed. Choose "More info" → "Run anyway", or install by hand: extract BepInEx 5 (x64) into the game folder, then extract `Hotline-<version>.zip` into `BepInEx/plugins/Hotline/`.
+**Windows SmartScreen** may warn that the .exe is unrecognized, because it isn't code-signed. Choose "More info" → "Run anyway".
 
-The installer also has flags for scripting: `--install [--repair] [--game "path"]`, `--uninstall [--all] [--yes] [--game "path"]`, and `--check [--game "path"]` (exits 0 if Hotline loaded last run).
+The installer also has flags for scripting: `--install [--game "path"]`, `--uninstall [--all] [--yes] [--game "path"]`, `--check [--game "path"]` (exits 0 if Hotline loaded last run), and `--loader version|winhttp`.
+
+### Why the setup does more than unzip BepInEx
+
+Scam With Your Friends ships a *stripped* .NET class library: Unity removed the parts the game doesn't use. BepInEx needs some of them, so plain BepInEx crashes the moment it starts, before it can even write a log. The setup uses the [community Setup for this game](https://github.com/swyf-modding/Setup) (vendored in `third_party/`) to fix that:
+
+1. installs Doorstop (the loader) and BepInEx 5.4.23.5,
+2. puts full copies of 8 .NET libraries, matching the game's Unity version (6000.3.10f1), into `unstripped_corlib/` next to the game, and points the loader at them,
+3. writes patched copies of the few game files that clash with the full libraries into that same folder.
+
+The game's own `Managed` folder is never modified. "Uninstall everything" removes `unstripped_corlib/` too. Because the libraries must match the game's Unity version, a game update that changes it needs a new Hotline release; the setup's option 6 detects that and says so.
 
 Upgrading from the old "Scam With Friends Modded" build: just run the setup. It removes the old `ScamWithFriendsModded` plugin folder so two copies never load. Custom scam packs from the old config folder need moving to `BepInEx/config/Hotline/ScamPacks/`.
 
@@ -170,3 +183,9 @@ These check the scam injection, wealth tiers, caller prompts, heat and raids, Sc
 - The crypto market advances when the game's day changes (`ScamazonUnlockSchedule.CurrentDay`). If the Diagnostics tab reports it missing, prices and heat won't move.
 - The game is in Early Access and updates often, so hooks can break. Check `LogOutput.log` for `Game probe` warnings after an update.
 - The game's anti-cheat status for online play is unknown. Test mods in private lobbies with friends who agreed to use them.
+
+## Credits
+
+- [swyf-modding/Setup](https://github.com/swyf-modding/Setup) by Ras_rap (MIT): the stripped-library fix the installer runs. Vendored with hashes in `third_party/ScamWYF.Setup.Core/NOTICE.md`.
+- [BepInEx](https://github.com/BepInEx/BepInEx) (LGPL-2.1) and [UnityDoorstop](https://github.com/NeighTools/UnityDoorstop) (LGPL-2.1).
+- Mono class libraries (MIT), as shipped with Unity.

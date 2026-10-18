@@ -12,7 +12,9 @@ namespace Hotline.Installer
     /// </summary>
     internal static class Program
     {
-        private const string ProtonLaunchOption = "WINEDLLOVERRIDES=\"winhttp=n,b\" %command%";
+        // From the community setup: n,b (not n alone) avoids a Unity window crash on Proton;
+        // -whisper-cpu runs the game's speech recognition on the CPU there.
+        private const string ProtonLaunchOption = ScamWYF.Setup.GameInstall.ProtonLaunchOption;
 
         private static int Main(string[] args)
         {
@@ -48,8 +50,9 @@ namespace Hotline.Installer
 
             if (Has(args, "--install"))
             {
-                setup.Install(repairBepInEx: Has(args, "--repair"));
-                PrintAfterInstall();
+                var installProblems = setup.Install();
+                PrintAfterInstall(setup, installProblems);
+                if (installProblems.Count > 0) return 6;
                 return 0;
             }
             var loader = Option(args, "--loader");
@@ -109,8 +112,8 @@ namespace Hotline.Installer
                 }
                 string otherLoader = setup.ActiveLoader == Setup.AlternateLoader ? Setup.DefaultLoader : Setup.AlternateLoader;
                 Console.WriteLine();
-                Ui.Option("1", setup.ModInstalled ? "Update / reinstall the mod" : "Install the mod");
-                Ui.Option("2", "Repair (reinstall BepInEx and the mod)");
+                Ui.Option("1", setup.ModInstalled ? "Update / reinstall Hotline" : "Install Hotline");
+                Ui.Option("2", "Repair " + Dim("(redo the full setup; use after game updates)"));
                 Ui.Option("3", "Uninstall the mod " + Dim("(keeps BepInEx and your settings)"));
                 Ui.Option("4", "Uninstall everything " + Dim("(mod and BepInEx)"));
                 Ui.Option("5", "Choose a different game folder");
@@ -138,8 +141,8 @@ namespace Hotline.Installer
 
                 switch (choice)
                 {
-                    case "1": setup.Install(); Ui.Ok("Installed."); PrintAfterInstall(); break;
-                    case "2": setup.Install(repairBepInEx: true); Ui.Ok("Repaired."); PrintAfterInstall(); break;
+                    case "1":
+                    case "2": PrintAfterInstall(setup, setup.Install()); break;
                     case "3": setup.UninstallMod(); Ui.Ok("Done."); break;
                     case "4":
                         var others = setup.OtherPlugins();
@@ -197,6 +200,7 @@ namespace Hotline.Installer
                     blocked |= check.Blocker;
                 }
             }
+            bool unityChanged = false;
             var unity = setup.ReadUnityLog();
             if (unity != null)
             {
@@ -208,6 +212,11 @@ namespace Hotline.Installer
                     Ui.Fail("This build runs on IL2CPP, which this Hotline version can't load into.");
                     blocked = true;
                 }
+                if (unity.EngineVersion != null && !unity.EngineVersion.StartsWith(Setup.BundledUnityVersion))
+                {
+                    Ui.Warn($"The game now runs a different Unity version than this Hotline release was built for ({Setup.BundledUnityVersion}).");
+                    unityChanged = true;
+                }
                 Ui.Muted(unity.LogPath);
             }
 
@@ -218,7 +227,12 @@ namespace Hotline.Installer
                 Ui.Info("Hotline can't run on this version of the game (see × above). Nothing on your PC needs fixing.");
                 Ui.Info("Pick 4 to return the game to stock, and check for a newer Hotline release that supports it.");
             }
-            else if (anyFailed) Ui.Info("Fix the items marked × above, then start the game again and pick 6.");
+            else if (anyFailed) Ui.Info("Fix the items marked × above (most need just 2, Repair), then start the game again and pick 6.");
+            else if (unityChanged)
+            {
+                Ui.Info("A game update changed its Unity version, which is the likely reason BepInEx can't start.");
+                Ui.Info("Check for a newer Hotline release. Until then, pick 4 to return the game to stock.");
+            }
             else if (setup.ActiveLoader == Setup.DefaultLoader)
             {
                 Ui.Info("Everything is in place, so the game probably isn't loading winhttp.dll.");
@@ -235,11 +249,20 @@ namespace Hotline.Installer
             }
         }
 
-        private static void PrintAfterInstall()
+        private static void PrintAfterInstall(Setup setup, System.Collections.Generic.List<string> problems)
         {
             Console.WriteLine();
+            if (problems.Count == 0) Ui.Ok("BepInEx and Hotline are set up.");
+            else
+            {
+                Ui.Warn("Setup finished, but its final check found problems:");
+                foreach (var problem in problems) Ui.Fail(problem);
+                Ui.Info("Pick 2 (Repair) once. If they're still there, this game version may need a newer Hotline release.");
+                Ui.Muted("Details: " + setup.SetupLogPath);
+            }
             Ui.Info("Start the game from Steam. You should see \"HOTLINE activated\" in the top-left corner;");
             Ui.Info("press F8 for the mod menu. If you don't see it, run this setup again and pick 6.");
+            Ui.Muted("Run this setup again (pick 2) after the game updates.");
             Ui.Muted("Steam Deck / Linux (Proton): set this as the game's launch option in Steam:");
             Ui.Muted("  " + ProtonLaunchOption);
         }
