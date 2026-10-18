@@ -17,7 +17,12 @@ namespace ScamWithFriendsModded
             "ConversationScamSession",
             "ConversationScamAiDetector",
             "ConversationScamDefinition",
+            "ConversationScamObjective",
             "CallerIdentityLibrary",
+            "KolkataOsController",
+            "KolkataOsApplicationAccess",
+            "KolkataOsApplicationStoreCatalog",
+            "KolkataOsApplicationStoreManifest",
         };
 
         public static readonly Dictionary<string, Type> Found = new Dictionary<string, Type>();
@@ -34,9 +39,9 @@ namespace ScamWithFriendsModded
                 else Missing.Add(name);
             }
 
-            Plugin.Log.LogInfo($"Game probe: {Found.Count}/{KnownTypes.Length} known types found.");
+            Mod.Log.LogInfo($"Game probe: {Found.Count}/{KnownTypes.Length} known types found.");
             foreach (var name in Missing)
-                Plugin.Log.LogWarning($"Game probe: type '{name}' not found; the game may have been updated.");
+                Mod.Log.LogWarning($"Game probe: type '{name}' not found; the game may have been updated.");
         }
 
         public static Type Get(string name) => Found.TryGetValue(name, out var type) ? type : null;

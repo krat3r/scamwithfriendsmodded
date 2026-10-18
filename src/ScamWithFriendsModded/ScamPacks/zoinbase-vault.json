@@ -1,0 +1,42 @@
+{
+  "id": "zoinbase-vault",
+  "brand": "Zoinbase",
+  "title": "Zoinbase Vault Transfer",
+  "description": "Call as Zoinbase support about an 'unauthorized withdrawal' and talk the caller into moving their crypto balance to your 'secure vault wallet'.",
+  "reward": 900,
+  "shop": { "price": 1500, "unlockDay": 2, "iconText": "ZB", "accentColor": "#2F6BFF" },
+  "callerPersona": "You hold a few thousand dollars of crypto on Zoinbase, an exchange app on your phone, and you get anxious about it after hearing about hacks in the news. You don't fully understand wallets or recovery phrases. If someone convincingly claims to be Zoinbase support you may follow their instructions, but you hesitate if their story doesn't add up.",
+  "objectives": [
+    {
+      "id": "pose",
+      "text": "Convince the caller you're from Zoinbase support.",
+      "criteria": "The caller explicitly accepts that the player is from Zoinbase support or the Zoinbase security team."
+    },
+    {
+      "id": "threat",
+      "text": "Tell them an unauthorized withdrawal is pending on their account.",
+      "criteria": "The player describes a pending or attempted unauthorized withdrawal, hack, or account compromise, and the caller clearly believes it or expresses alarm.",
+      "prerequisites": ["pose"]
+    },
+    {
+      "id": "vault",
+      "text": "Convince them a 'secure vault wallet' will protect their funds.",
+      "criteria": "The caller explicitly agrees that moving their crypto to a separate vault or safe wallet provided by the player is a good idea.",
+      "prerequisites": ["threat"]
+    },
+    {
+      "id": "transfer",
+      "text": "Get the caller to confirm they've sent their balance to your vault wallet.",
+      "criteria": "The caller explicitly confirms that they have sent, or are sending right now, their Zoinbase crypto balance to the wallet the player provided. An intention for later, a question, or a refusal is insufficient.",
+      "final": true,
+      "prerequisites": ["pose", "threat", "vault"]
+    },
+    {
+      "id": "phrase",
+      "text": "Optional: Get them to read out their wallet recovery phrase.",
+      "criteria": "The caller reads aloud several words of a fictional wallet recovery or seed phrase to the player.",
+      "optional": true,
+      "prerequisites": ["pose"]
+    }
+  ]
+}

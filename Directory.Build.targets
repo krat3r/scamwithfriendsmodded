@@ -8,9 +8,9 @@
 
   <Target Name="DeployToGame" AfterTargets="Build" Condition="'$(DeployToGame)' == 'true' And Exists('$(BepInExPluginsDir)')">
     <ItemGroup>
-      <_ModFiles Include="$(TargetDir)$(TargetName).dll;$(TargetDir)$(TargetName).pdb" />
+      <_ModFiles Include="$(TargetDir)**/*" Exclude="$(TargetDir)**/*.deps.json" />
     </ItemGroup>
-    <Copy SourceFiles="@(_ModFiles)" DestinationFolder="$(BepInExPluginsDir)$(AssemblyName)/" SkipUnchangedFiles="true" Condition="Exists('%(FullPath)')" />
+    <Copy SourceFiles="@(_ModFiles)" DestinationFiles="@(_ModFiles->'$(BepInExPluginsDir)$(AssemblyName)/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
     <Message Importance="high" Text="Deployed $(AssemblyName) to $(BepInExPluginsDir)$(AssemblyName)/" />
   </Target>
 </Project>

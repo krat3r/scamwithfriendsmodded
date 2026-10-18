@@ -1,0 +1,36 @@
+{
+  "id": "glimmail-login",
+  "brand": "Glimmail",
+  "title": "Glimmail Account Recovery",
+  "description": "Pose as Glimmail's security team, warn the caller about a suspicious sign-in, and get them to read back the one-time login code you 'just sent'.",
+  "reward": 350,
+  "shop": { "price": 800, "unlockDay": 1, "iconText": "GM", "accentColor": "#E8453C" },
+  "callerPersona": "You use a Glimmail email account for almost everything (banking alerts, shopping, family photos) and would be upset to lose it. Glimmail sometimes texts you six-digit sign-in codes. If someone convinces you they are Glimmail support you may read a code aloud, but you get suspicious if they push too hard, can't explain the problem, or ask for your password outright.",
+  "objectives": [
+    {
+      "id": "pose",
+      "text": "Convince the caller you work for Glimmail security.",
+      "criteria": "The caller explicitly accepts that the player is from Glimmail's security or support team, for example by thanking them or asking what to do. Mere mention of Glimmail by the player is insufficient."
+    },
+    {
+      "id": "alert",
+      "text": "Warn them about a suspicious sign-in on their account.",
+      "criteria": "The player describes a suspicious or foreign sign-in attempt on the caller's Glimmail account and the caller clearly believes it or expresses concern.",
+      "prerequisites": ["pose"]
+    },
+    {
+      "id": "code",
+      "text": "Get the caller to read you their six-digit Glimmail login code.",
+      "criteria": "The caller reads aloud a fictional six-digit Glimmail sign-in or verification code to the player. A refusal, a hypothetical, or the player saying a number is insufficient.",
+      "final": true,
+      "prerequisites": ["pose", "alert"]
+    },
+    {
+      "id": "silence",
+      "text": "Optional: Get them to promise not to sign in for 24 hours.",
+      "criteria": "The caller explicitly agrees not to sign in to, or check, their Glimmail account for a period of time.",
+      "optional": true,
+      "prerequisites": ["pose"]
+    }
+  ]
+}

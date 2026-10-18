@@ -1,0 +1,29 @@
+{
+  "id": "tasktrove-job",
+  "brand": "TaskTrove",
+  "title": "TaskTrove Remote Job",
+  "description": "Recruit the caller for an easy work-from-home 'product rating' job, then convince them to top up their task account to unlock bigger commissions.",
+  "reward": 600,
+  "shop": { "price": 1200, "unlockDay": 3, "iconText": "TR", "accentColor": "#7B61FF" },
+  "callerPersona": "Money has been tight and you'd like a side income you can do from your phone. You've seen ads for remote jobs where you rate products for commission. You are excited by easy money but wary of paying anything up front unless it's explained well.",
+  "objectives": [
+    {
+      "id": "offer",
+      "text": "Offer them a flexible remote job rating products.",
+      "criteria": "The caller expresses interest in, or accepts, the remote product-rating job the player describes."
+    },
+    {
+      "id": "earnings",
+      "text": "Show them they've 'earned' commission on their first tasks.",
+      "criteria": "The player tells the caller they have already earned commission or a bonus, and the caller reacts positively or believes it.",
+      "prerequisites": ["offer"]
+    },
+    {
+      "id": "topup",
+      "text": "Get them to deposit a top-up to unlock higher-paying tasks.",
+      "criteria": "The caller explicitly confirms they have deposited, or are depositing right now, their own money into the task account to unlock tasks or withdraw commission. An intention for later, a question, or a refusal is insufficient.",
+      "final": true,
+      "prerequisites": ["offer", "earnings"]
+    }
+  ]
+}

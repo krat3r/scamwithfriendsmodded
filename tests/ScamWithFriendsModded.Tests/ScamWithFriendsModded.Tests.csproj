@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Runs the mod's hooks against stand-in game types. No game process needed:
+       dotnet run -c Release --project tests/ScamWithFriendsModded.Tests -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <DeployToGame>false</DeployToGame>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/ScamWithFriendsModded/ScamWithFriendsModded.csproj" />
+    <Reference Update="BepInEx;UnityEngine;UnityEngine.CoreModule;UnityEngine.IMGUIModule;UnityEngine.TextRenderingModule" Private="true" />
+    <!-- BepInEx's own 0Harmony targets .NET Framework/Mono; HarmonyX from NuGet runs on .NET 8. -->
+    <Reference Remove="0Harmony" />
+    <PackageReference Include="HarmonyX" Version="2.16.1" />
+    <Reference Include="Newtonsoft.Json" HintPath="$(GameManagedDir)Newtonsoft.Json.dll" Private="true" />
+  </ItemGroup>
+</Project>

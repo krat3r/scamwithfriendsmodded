@@ -1,0 +1,29 @@
+{
+  "id": "fastlane-toll",
+  "brand": "FastLane Tolls",
+  "title": "FastLane Unpaid Toll",
+  "description": "Follow up on a 'final notice' text about an unpaid road toll and get the caller to pay the toll plus a late fee through your payment link.",
+  "reward": 250,
+  "shop": { "price": 600, "unlockDay": 1, "iconText": "FL", "accentColor": "#F5A623" },
+  "callerPersona": "You drive on toll roads now and then and can't remember whether you've paid every toll. You recently got a text about an unpaid FastLane toll and weren't sure if it was real. Small fees seem plausible to you, large ones do not.",
+  "objectives": [
+    {
+      "id": "notice",
+      "text": "Convince them they owe an unpaid FastLane toll.",
+      "criteria": "The caller accepts that they may have an unpaid FastLane toll, for example by recalling the text or asking how much it is."
+    },
+    {
+      "id": "deadline",
+      "text": "Create urgency with a late fee or license suspension deadline.",
+      "criteria": "The player mentions a deadline, late fee, or penalty and the caller expresses worry or a wish to pay quickly.",
+      "prerequisites": ["notice"]
+    },
+    {
+      "id": "paid",
+      "text": "Get them to confirm they paid through your link.",
+      "criteria": "The caller explicitly confirms they have paid, or are paying right now, the toll and fee through the link or page the player gave them. A promise to pay later or a refusal is insufficient.",
+      "final": true,
+      "prerequisites": ["notice", "deadline"]
+    }
+  ]
+}
